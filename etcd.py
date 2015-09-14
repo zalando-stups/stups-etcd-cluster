@@ -296,6 +296,7 @@ class EtcdManager:
 
     def clean_data_dir(self):
         path = self.DATA_DIR
+        logging.info('Removing data directory: %s', path)
         try:
             if os.path.islink(path):
                 os.unlink(path)
@@ -315,25 +316,30 @@ class EtcdManager:
         if cluster.accessible_member is None:
             include_ec2_instances = True
             cluster_state = 'existing' if data_exists else 'new'
+            logging.info('Cluster does not have accessible member yet, cluster state=%s', cluster_state)
         elif len(self.me.client_urls) > 0:
             remove_member = add_member = not data_exists
+            logging.info('My clientURLs list is not empty: %s', self.me.client_urls)
+            logging.info('My data directory exists=%s', data_exists)
         else:
             if self.me.id:
                 cluster_state = 'new' if self.me.name else 'existing'
+                logging.info('Cluster state=%s because my(id=%s, name=%s)', cluster_state, self.me.id, self.me.name)
             else:
                 add_member = True
+                logging.info('add_member = True because I am not part of cluster yet')
             self.clean_data_dir()
 
         if add_member or remove_member:
             if not cluster.leader_id:
                 raise EtcdClusterException('Etcd cluster does not have leader yet. Can not add myself')
-            if remove_member and not cluster.accessible_member.delete_member(self.me):
-                raise EtcdClusterException('Can not remove my old instance from etcd cluster')
-            else:
+            if remove_member:
+                if not cluster.accessible_member.delete_member(self.me):
+                    raise EtcdClusterException('Can not remove my old instance from etcd cluster')
                 time.sleep(self.NAPTIME)
-            if add_member and not cluster.accessible_member.add_member(self.me):
-                raise EtcdClusterException('Can not register myself in etcd cluster')
-            else:
+            if add_member:
+                if not cluster.accessible_member.add_member(self.me):
+                    raise EtcdClusterException('Can not register myself in etcd cluster')
                 time.sleep(self.NAPTIME)
 
         peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
@@ -360,8 +366,7 @@ class EtcdManager:
                     pid, status = os.waitpid(self.etcd_pid, 0)
                     logging.warning('Process %s finished with exit code %s', pid, status >> 8)
                     self.etcd_pid = 0
-            except KeyboardInterrupt:
-                logging.warning('Got keyboard interrupt, exiting...')
+            except SystemExit:
                 break
             except:
                 logging.exception('Exception in main loop')

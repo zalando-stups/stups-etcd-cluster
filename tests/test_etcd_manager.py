@@ -101,8 +101,8 @@ def raise_exception(*args):
     raise Exception
 
 
-def kbd_interrupt(_):
-    raise KeyboardInterrupt
+def system_exit(_):
+    raise SystemExit
 
 
 class TestEtcdManager(unittest.TestCase):
@@ -175,7 +175,7 @@ class TestEtcdManager(unittest.TestCase):
         self.assertRaises(SleepException, self.manager.run)
 
         load_members = EtcdCluster.load_members
-        EtcdCluster.load_members = kbd_interrupt
+        EtcdCluster.load_members = system_exit
         self.manager.run()
         EtcdCluster.load_members = load_members
 
