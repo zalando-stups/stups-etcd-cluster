@@ -1,4 +1,4 @@
-FROM zalando/python:3.4.0-1
+FROM zalando/python:3.4.0-4
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
