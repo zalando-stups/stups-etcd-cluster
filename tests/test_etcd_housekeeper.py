@@ -86,6 +86,7 @@ class TestHouseKeeper(unittest.TestCase):
         self.assertEqual(self.members_changed, True)
         self.keeper.members['blabla'] = True
         self.assertEqual(self.keeper.members_changed(), True)
+        self.assertEqual(self.keeper.members_changed(), False)
 
     def test_is_leader(self):
         self.assertEqual(self.keeper.is_leader(), True)

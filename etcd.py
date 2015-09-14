@@ -24,6 +24,10 @@ else:
     from urlparse import urlparse
 
 
+class EtcdClusterException(Exception):
+    pass
+
+
 class EtcdMember:
 
     API_TIMEOUT = 3.1
@@ -33,13 +37,12 @@ class EtcdMember:
     AG_TAG = 'aws:autoscaling:groupName'
 
     def __init__(self, arg):
-        self.is_accessible = False
         self.id = None  # id of cluster member, could be obtained only from running cluster
-        self.name = None  # name of cluster member, always mactch with the AWS instance.id
-        self.instance_id = None
-        self.addr = None  # private ip address of the instance
-        self.cluster_token = None
-        self.autoscaling_group = None
+        self.name = None  # name of cluster member, always match with the AWS instance.id
+        self.instance_id = None  # AWS instance.id
+        self.addr = None  # private ip address of the instance or peer_addr
+        self.cluster_token = None  # match with aws:cloudformation:stack-name
+        self.autoscaling_group = None  # Name of autoscaling group (aws:autoscaling:groupName)
 
         self.client_port = self.DEFAULT_CLIENT_PORT
         self.peer_port = self.DEFAULT_PEER_PORT
@@ -102,7 +105,12 @@ class EtcdMember:
             url += self.API_VERSION + endpoint
         return url
 
-    def get_peer_url(self):
+    @property
+    def peer_addr(self):
+        return '{}:{}'.format(self.addr, self.peer_port)
+
+    @property
+    def peer_url(self):
         return self.generate_url(self.addr, self.peer_port)
 
     def api_get(self, endpoint):
@@ -145,8 +153,8 @@ class EtcdMember:
         return (json['members'] if json else [])
 
     def add_member(self, member):
-        logging.debug('Adding new member %s:%s to cluster', member.instance_id, member.get_peer_url())
-        response = self.api_post('members', {'peerURLs': [member.get_peer_url()]})
+        logging.debug('Adding new member %s:%s to cluster', member.instance_id, member.peer_url)
+        response = self.api_post('members', {'peerURLs': [member.peer_url]})
         if response:
             member.set_info_from_etcd(response)
             return True
@@ -165,7 +173,7 @@ class EtcdMember:
             '-listen-peer-urls',
             'http://0.0.0.0:{}'.format(self.peer_port),
             '-initial-advertise-peer-urls',
-            self.get_peer_url(),
+            self.peer_url,
             '-listen-client-urls',
             'http://0.0.0.0:{}'.format(self.client_port),
             '-advertise-client-urls',
@@ -183,51 +191,60 @@ class EtcdCluster:
 
     def __init__(self, manager):
         self.manager = manager
-        self.me = None
         self.accessible_member = None
+        self.leader_id = None
+        self.members = []
 
     @staticmethod
     def merge_member_lists(ec2_members, etcd_members):
-        members = dict((m.get_peer_url(), m) for m in ec2_members)
+        # we can match EC2 instance with single etcd member by comparing 'addr:peer_port'
+        peers = {m.peer_addr: m for m in ec2_members}
+
+        # iterate through list of etcd members obtained from running etcd cluster
         for m in etcd_members:
-            existing_members = [members[u] for u in m['peerURLs'] if u in members]
-            if existing_members:
-                members[existing_members[0].get_peer_url()].set_info_from_etcd(m)
-            else:
+            for peer_url in m['peerURLs']:
+                r = urlparse(peer_url)
+                if r.netloc in peers:  # etcd member found among list of EC2 instances
+                    peers[r.netloc].set_info_from_etcd(m)
+                    m = None
+                    break
+
+            # when etcd member hasn't been found just add it into list
+            if m:
                 m = EtcdMember(m)
-                members[m.get_peer_url()] = m
-        return sorted(members.values(), key=lambda e: e.instance_id or e.name)
+                peers[m.peer_addr] = m
+        return sorted(peers.values(), key=lambda e: e.instance_id or e.name)
 
     def load_members(self):
         self.accessible_member = None
-        self.leader = None
-        leader = None
+        self.leader_id = None
         ec2_members = list(map(EtcdMember, self.manager.get_autoscaling_members()))
         etcd_members = []
+
+        # Try to connect to members of autoscaling_group group and fetch information about etcd-cluster
         for member in ec2_members:
-            if member.instance_id != self.manager.instance_id:
+            if member.instance_id != self.manager.instance_id:  # Skip myself
                 try:
-                    leader = member.get_leader()
                     etcd_members = member.get_members()
-                    if etcd_members:
+                    if etcd_members:  # We've found accessible etcd member
                         self.accessible_member = member
+                        self.leader_id = member.get_leader()  # Let's ask him about leader of etcd-cluster
                         break
                 except:
                     logging.exception('Load members from etcd')
 
+        # combine both lists together
         self.members = self.merge_member_lists(ec2_members, etcd_members)
 
-        for m in self.members:
-            if leader and m.id == leader:
-                self.leader = m
-            if self.manager.instance_id in [m.instance_id, m.name]:
-                self.me = m
-
-    def is_healthy(self):
+    def is_healthy(self, instance_id):
+        """"Check that cluster does not contain members other then from our ASG
+        or given EC2 instance is already part of cluster"""
+        if [m for m in self.members if m.name == instance_id]:
+            return True
         for m in self.members:
             if not m.instance_id:
                 logging.warning('Member id=%s name=%s is not part of ASG', m.id, m.name)
-                logging.warning('Will wait until it would be removed from cluster')
+                logging.warning('Will wait until it would be removed from cluster by HouseKeeper job running on leader')
                 return False
         return True
 
@@ -248,7 +265,7 @@ class EtcdManager:
         url = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
         response = requests.get(url)
         if response.status_code != 200:
-            raise Exception('Got error from %s: code=%s content=%s', url, response.status_code, response.content)
+            raise EtcdClusterException('GET %s: code=%s content=%s', url, response.status_code, response.content)
         json = response.json()
         self.region = json['region']
         self.instance_id = json['instanceId']
@@ -260,9 +277,8 @@ class EtcdManager:
         conn = boto.ec2.connect_to_region(self.region)
         for r in conn.get_all_reservations(filters={'instance_id': self.instance_id}):
             for i in r.instances:
-                if i.id == self.instance_id:
-                    return (EtcdMember(i) if EtcdMember.AG_TAG in i.tags else None)
-        return None
+                if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
+                    return EtcdMember(i)
 
     def get_my_instace(self):
         if not self.me:
@@ -299,29 +315,31 @@ class EtcdManager:
         if cluster.accessible_member is None:
             include_ec2_instances = True
             cluster_state = 'existing' if data_exists else 'new'
-        elif len(cluster.me.client_urls) > 0:
+        elif len(self.me.client_urls) > 0:
             remove_member = add_member = not data_exists
         else:
-            if cluster.me.id:
-                cluster_state = 'new' if cluster.me.name else 'existing'
+            if self.me.id:
+                cluster_state = 'new' if self.me.name else 'existing'
             else:
                 add_member = True
             self.clean_data_dir()
 
         if add_member or remove_member:
-            if not cluster.leader:
-                raise Exception('Etcd cluster does not have leader yet. Can not add myself')
-            if remove_member and not cluster.accessible_member.delete_member(cluster.me):
-                raise Exception('Can not remove my old instance from etcd cluster')
-            time.sleep(self.NAPTIME)
-            if add_member and not cluster.accessible_member.add_member(cluster.me):
-                raise Exception('Can not register myself in etcd cluster')
-            time.sleep(self.NAPTIME)
+            if not cluster.leader_id:
+                raise EtcdClusterException('Etcd cluster does not have leader yet. Can not add myself')
+            if remove_member and not cluster.accessible_member.delete_member(self.me):
+                raise EtcdClusterException('Can not remove my old instance from etcd cluster')
+            else:
+                time.sleep(self.NAPTIME)
+            if add_member and not cluster.accessible_member.add_member(self.me):
+                raise EtcdClusterException('Can not register myself in etcd cluster')
+            else:
+                time.sleep(self.NAPTIME)
 
-        peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.get_peer_url()) for m in cluster.members
+        peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
                          if (include_ec2_instances and m.instance_id) or m.peer_urls])
 
-        return cluster.me.etcd_arguments(self.DATA_DIR, peers, cluster_state)
+        return self.me.etcd_arguments(self.DATA_DIR, peers, cluster_state)
 
     def run(self):
         cluster = EtcdCluster(self)
@@ -329,7 +347,9 @@ class EtcdManager:
             try:
                 cluster.load_members()
 
-                if cluster.is_healthy():
+                self.me = ([m for m in cluster.members if m.instance_id == self.me.instance_id] or [self.me])[0]
+
+                if cluster.is_healthy(self.me.instance_id):
                     args = self.register_me(cluster)
 
                     self.etcd_pid = os.fork()
@@ -343,7 +363,7 @@ class EtcdManager:
             except KeyboardInterrupt:
                 logging.warning('Got keyboard interrupt, exiting...')
                 break
-            except Exception:
+            except:
                 logging.exception('Exception in main loop')
             logging.warning('Sleeping %s seconds before next try...', self.NAPTIME)
             time.sleep(self.NAPTIME)
@@ -357,51 +377,40 @@ class HouseKeeper(Thread):
         super(HouseKeeper, self).__init__()
         self.daemon = True
         self.manager = manager
-        self.me = EtcdMember({
-            'id': None,
-            'name': None,
-            'peerURLs': ['http://127.0.0.1:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
-            'clientURLs': [],
-        })
         self.hosted_zone = hosted_zone
         self.members = {}
         self.unhealthy_members = {}
 
     def is_leader(self):
-        return self.me.is_leader()
+        return self.manager.me.is_leader()
 
     def acquire_lock(self):
         data = data = {'value': self.manager.instance_id, 'ttl': self.NAPTIME, 'prevExist': False}
-        return not self.me.api_put('keys/_self_maintenance_lock', data=data) is None
+        return not self.manager.me.api_put('keys/_self_maintenance_lock', data=data) is None
 
     def members_changed(self):
         old_members = self.members.copy()
-        new_members = self.me.get_members()
-        changed = False
-        for m in new_members:
-            if not m['id'] in old_members or old_members.pop(m['id']) != m:
-                changed = True
-        if old_members:
-            changed = True
-        if changed:
-            self.members = dict((m['id'], m) for m in new_members)
-        return changed
+        new_members = self.manager.me.get_members()
+        if all(old_members.pop(m['id'], None) == m for m in new_members) and not old_members:
+            return False
+        self.members = {m['id']: m for m in new_members}
+        return True
 
     def cluster_unhealthy(self):
         process = subprocess.Popen([self.manager.ETCD_BINARY + 'ctl', 'cluster-health'],
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        ret = any([True for line in process.stdout if 'is unhealthy' in str(line) or 'is unreachable' in str(line)])
+        ret = any('is unhealthy' in str(line) or 'is unreachable' in str(line) for line in process.stdout)
         process.wait()
         return ret
 
     def remove_unhealthy_members(self, autoscaling_members):
-        members = dict((m.addr, m) for m in map(EtcdMember, self.members.values()))
+        members = {m.addr: m for m in map(EtcdMember, self.members.values())}
 
         for m in autoscaling_members:
             members.pop(m.private_ip_address, None)
 
         for m in members.values():
-            self.me.delete_member(m)
+            self.manager.me.delete_member(m)
 
     @staticmethod
     def update_record(zone, record_type, record_name, new_value):
@@ -421,21 +430,15 @@ class HouseKeeper(Thread):
             return
 
         stack_version = self.manager.me.cluster_token.split('-')[-1]
-        members = dict((m.addr, m) for m in map(EtcdMember, self.members.values()))
+        members = {m.addr: m for m in map(EtcdMember, self.members.values())}
 
-        record_name = '.'.join(['_etcd-server._tcp', stack_version, self.hosted_zone])
         new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].peer_port, i.private_dns_name])) for i in
                       autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'SRV', record_name, new_record)
+        self.update_record(zone, 'SRV', '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
+        self.update_record(zone, 'SRV', '_etcd._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
-        record_name = '.'.join(['_etcd._tcp', stack_version, self.hosted_zone])
-        new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].client_port, i.private_dns_name])) for i in
-                      autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'SRV', record_name, new_record)
-
-        record_name = '.'.join(['etcd-server', stack_version, self.hosted_zone])
         new_record = [i.private_ip_address for i in autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'A', record_name, new_record)
+        self.update_record(zone, 'A', 'etcd-server.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
     def run(self):
         update_required = False
@@ -463,6 +466,8 @@ def sigterm_handler(signo, stack_frame):
 
 
 def main():
+    signal.signal(signal.SIGTERM, sigterm_handler)
+    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.DEBUG)
     hosted_zone = os.environ.get('HOSTED_ZONE', None)
     manager = EtcdManager()
     try:
@@ -475,11 +480,9 @@ def main():
             cluster = EtcdCluster(manager)
             cluster.load_members()
             if cluster.accessible_member:
-                if cluster.me:
-                    if not cluster.accessible_member.delete_member(cluster.me):
-                        logging.error('Can not remove myself from cluster')
-                else:
-                    logging.error('Can not find me in existing cluster')
+                if [m for m in cluster.members if m.name == manager.me.instance_id]\
+                        and not cluster.accessible_member.delete_member(manager.me):
+                    logging.error('Can not remove myself from cluster')
             else:
                 logging.error('Cluster does not have accessible member')
         except:
@@ -487,6 +490,4 @@ def main():
 
 
 if __name__ == '__main__':
-    signal.signal(signal.SIGTERM, sigterm_handler)
-    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.DEBUG)
     main()
