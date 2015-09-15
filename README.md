@@ -1,8 +1,9 @@
-[![Build Status](https://travis-ci.org/zalando/stups-etcd-cluster.svg?branch=master)](https://travis-ci.org/zalando/stups-etcd-cluster)[![Coverage Status](https://coveralls.io/repos/zalando/stups-etcd-cluster/badge.svg?branch=master&service=github)](https://coveralls.io/github/zalando/stups-etcd-cluster?branch=master)
+[![Build Status](https://travis-ci.org/zalando/stups-etcd-cluster.svg?branch=master)](https://travis-ci.org/zalando/stups-etcd-cluster)
+[![Coverage Status](https://coveralls.io/repos/zalando/stups-etcd-cluster/badge.svg?branch=master&service=github)](https://coveralls.io/github/zalando/stups-etcd-cluster?branch=master)
 
 Introduction
 ============
-This etcd appliance is created for an AWS environment. It is available as an etcd cluster internally, for any application willing to use it. For discovery of the appliance we consider having a recently updated DNS SRV record.
+This etcd appliance is created for an AWS environment. It is available as an etcd cluster internally, for any application willing to use it. For discovery of the appliance we havie a recently updated DNS SRV and A records in a Route53 zone.
 
 Design
 ======
