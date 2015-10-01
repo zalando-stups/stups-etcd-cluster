@@ -440,6 +440,9 @@ class HouseKeeper(Thread):
         new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].peer_port, i.private_dns_name])) for i in
                       autoscaling_members if i.private_ip_address in members]
         self.update_record(zone, 'SRV', '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
+
+        new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].client_port, i.private_dns_name])) for i in
+                      autoscaling_members if i.private_ip_address in members]
         self.update_record(zone, 'SRV', '_etcd._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
         new_record = [i.private_ip_address for i in autoscaling_members if i.private_ip_address in members]
