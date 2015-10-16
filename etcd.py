@@ -246,6 +246,9 @@ class EtcdCluster:
                 logging.warning('Member id=%s name=%s is not part of ASG', m.id, m.name)
                 logging.warning('Will wait until it would be removed from cluster by HouseKeeper job running on leader')
                 return False
+            if m.id and not m.name and not m.client_urls:
+                logging.warning('Member (id=%s peerURLs=%s) is registered but not yet joined', m.id, m.peer_urls)
+                return False
         return True
 
 

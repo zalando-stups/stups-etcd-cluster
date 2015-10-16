@@ -33,5 +33,8 @@ class TestEtcdCluster(unittest.TestCase):
 
     def test_is_healthy(self):
         self.assertFalse(self.cluster.is_healthy('123'))
+        self.cluster.members[-1].instance_id = 'foo'
+        self.cluster.members[-1].name = ''
+        self.assertFalse(self.cluster.is_healthy('123'))
         self.cluster.members.pop()
         self.assertTrue(self.cluster.is_healthy('123'))
