@@ -236,17 +236,23 @@ class EtcdCluster:
         # combine both lists together
         self.members = self.merge_member_lists(ec2_members, etcd_members)
 
-    def is_healthy(self, instance_id):
+    def is_healthy(self, me):
         """"Check that cluster does not contain members other then from our ASG
         or given EC2 instance is already part of cluster"""
-        if [m for m in self.members if m.name == instance_id]:
-            return True
+
         for m in self.members:
+            if m.name == me.instance_id:
+                return True
             if not m.instance_id:
                 logging.warning('Member id=%s name=%s is not part of ASG', m.id, m.name)
                 logging.warning('Will wait until it would be removed from cluster by HouseKeeper job running on leader')
                 return False
             if m.id and not m.name and not m.client_urls:
+                # go through list of peerURLs and try to find my instance there
+                for peer_url in m.peer_urls:
+                    r = urlparse(peer_url)
+                    if r.netloc == me.peer_addr:
+                        return True
                 logging.warning('Member (id=%s peerURLs=%s) is registered but not yet joined', m.id, m.peer_urls)
                 return False
         return True
@@ -358,7 +364,7 @@ class EtcdManager:
 
                 self.me = ([m for m in cluster.members if m.instance_id == self.me.instance_id] or [self.me])[0]
 
-                if cluster.is_healthy(self.me.instance_id):
+                if cluster.is_healthy(self.me):
                     args = self.register_me(cluster)
 
                     self.etcd_pid = os.fork()
