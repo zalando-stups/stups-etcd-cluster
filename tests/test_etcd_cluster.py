@@ -2,7 +2,7 @@ import boto.ec2
 import requests
 import unittest
 
-from etcd import EtcdCluster, EtcdManager
+from etcd import EtcdCluster, EtcdManager, EtcdMember
 
 from test_etcd_manager import requests_get, boto_ec2_connect_to_region
 
@@ -32,6 +32,17 @@ class TestEtcdCluster(unittest.TestCase):
         self.cluster.load_members()
 
     def test_is_healthy(self):
-        self.assertFalse(self.cluster.is_healthy('123'))
+        me = EtcdMember({
+            'id': 'ifoobari7',
+            'name': 'i-sadfjhg',
+            'clientURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
+            'peerURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
+        })
+        self.assertFalse(self.cluster.is_healthy(me))
+        self.cluster.members[-1].instance_id = 'foo'
+        self.cluster.members[-1].name = ''
+        self.assertFalse(self.cluster.is_healthy(me))
+        self.cluster.members[-1].peer_urls = ['http://127.0.0.2:2380']
+        self.assertTrue(self.cluster.is_healthy(me))
         self.cluster.members.pop()
-        self.assertTrue(self.cluster.is_healthy('123'))
+        self.assertTrue(self.cluster.is_healthy(me))
