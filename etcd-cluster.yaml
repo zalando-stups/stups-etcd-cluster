@@ -26,8 +26,8 @@ SenzaComponents:
       scalyr_account_key: '{{Arguments.ScalyrAccountKey}}'
     Type: Senza::TaupageAutoScalingGroup
     AutoScaling:
-      Minimum: 3
-      Maximum: 3
+      Minimum: 5
+      Maximum: 5
       MetricType: CPU
 SenzaInfo:
   Parameters:
