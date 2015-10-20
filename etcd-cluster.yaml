@@ -39,6 +39,33 @@ SenzaInfo:
       Description: scalyr account key
   StackName: etcd-cluster
 Resources:
+  EtcdServerSRVRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: SRV
+      TTL: 20
+      HostedZoneName: "{{Arguments.HostedZone}}."
+      Name: "_etcd-server._tcp.{{Arguments.version}}.{{Arguments.HostedZone}}."
+      ResourceRecords:
+        - "1 1 2380 initial.route53.value"
+  EtcdClientSRVRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: SRV
+      TTL: 20
+      HostedZoneName: "{{Arguments.HostedZone}}."
+      Name: "_etcd._tcp.{{Arguments.version}}.{{Arguments.HostedZone}}."
+      ResourceRecords:
+        - "1 1 2379 initial.route53.value"
+  EtcdClientARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: A
+      TTL: 20
+      HostedZoneName: "{{Arguments.HostedZone}}."
+      Name: "etcd-server.{{Arguments.version}}.{{Arguments.HostedZone}}."
+      ResourceRecords:
+        - "127.0.0.1"
   EtcdSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
