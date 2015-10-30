@@ -76,7 +76,7 @@ class TestHouseKeeper(unittest.TestCase):
         boto.ec2.connect_to_region = boto_ec2_connect_to_region
         boto.route53.connect_to_region = boto_route53_connect_to_region
         self.manager = EtcdManager()
-        self.manager.get_my_instace()
+        self.manager.get_my_instance()
         self.manager.instance_id = 'i-deadbeef3'
         self.manager.region = 'eu-west-1'
         self.keeper = HouseKeeper(self.manager, 'test.')

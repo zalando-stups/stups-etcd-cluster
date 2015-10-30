@@ -116,7 +116,7 @@ class TestEtcdManager(unittest.TestCase):
         requests.get = requests_get
         boto.ec2.connect_to_region = boto_ec2_connect_to_region
         self.manager = EtcdManager()
-        self.manager.find_my_instace()
+        self.manager.find_my_instance()
 
     def test_get_autoscaling_members(self):
         self.assertEqual(len(self.manager.get_autoscaling_members()), 3)

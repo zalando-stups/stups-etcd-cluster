@@ -279,7 +279,7 @@ class EtcdManager:
         self.region = json['region']
         self.instance_id = json['instanceId']
 
-    def find_my_instace(self):
+    def find_my_instance(self):
         if not self.instance_id or not self.region:
             self.load_my_identities()
 
@@ -289,13 +289,13 @@ class EtcdManager:
                 if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
                     return EtcdMember(i)
 
-    def get_my_instace(self):
+    def get_my_instance(self):
         if not self.me:
-            self.me = self.find_my_instace()
+            self.me = self.find_my_instance()
         return self.me
 
     def get_autoscaling_members(self):
-        me = self.get_my_instace()
+        me = self.get_my_instance()
 
         conn = boto.ec2.connect_to_region(self.region)
         res = conn.get_all_reservations(filters={'tag:{}'.format(EtcdMember.AG_TAG): me.autoscaling_group})
