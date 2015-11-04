@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-import boto.ec2
+import boto3
 import boto.route53
 import json
 import logging
@@ -15,7 +15,6 @@ import subprocess
 import sys
 import time
 
-from boto.ec2.instance import Instance
 from threading import Thread
 
 if sys.hexversion >= 0x03000000:
@@ -50,10 +49,10 @@ class EtcdMember:
         self.client_urls = []  # these values could be assigned only from the running etcd
         self.peer_urls = []  # cluster by performing http://addr:client_port/v2/members api call
 
-        if isinstance(arg, Instance):
-            self.set_info_from_ec2_instance(arg)
-        else:
+        if isinstance(arg, dict):
             self.set_info_from_etcd(arg)
+        else:
+            self.set_info_from_ec2_instance(arg)
 
     def set_info_from_ec2_instance(self, instance):
         # by convention member.name == instance.id
@@ -283,11 +282,10 @@ class EtcdManager:
         if not self.instance_id or not self.region:
             self.load_my_identities()
 
-        conn = boto.ec2.connect_to_region(self.region)
-        for r in conn.get_all_reservations(filters={'instance_id': self.instance_id}):
-            for i in r.instances:
-                if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
-                    return EtcdMember(i)
+        conn = boto3.resource('ec2')
+        for i in conn.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [self.instance_id]}]):
+            if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
+                return EtcdMember(i)
 
     def get_my_instace(self):
         if not self.me:
@@ -297,11 +295,12 @@ class EtcdManager:
     def get_autoscaling_members(self):
         me = self.get_my_instace()
 
-        conn = boto.ec2.connect_to_region(self.region)
-        res = conn.get_all_reservations(filters={'tag:{}'.format(EtcdMember.AG_TAG): me.autoscaling_group})
+        conn = boto3.resource('ec2')
+        instances = conn.instances.filter(
+            Filters=[{'Name': 'tag:{}'.format(EtcdMember.AG_TAG), 'Values': [me.autoscaling_group]}])
 
-        return [i for r in res for i in r.instances if i.state != 'terminated' and i.tags.get(EtcdMember.AG_TAG, '')
-                == me.autoscaling_group]
+        return [i for i in instances if i.state != 'terminated' and i.tags.get(EtcdMember.AG_TAG, '') ==
+                me.autoscaling_group]
 
     def clean_data_dir(self):
         path = self.DATA_DIR

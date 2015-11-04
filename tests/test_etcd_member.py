@@ -1,31 +1,26 @@
-import requests
+import json
 import unittest
 
-from boto.ec2.instance import Instance
 from etcd import EtcdMember
+from mock import patch
+from test_etcd_manager import requests_delete, requests_get, MockInstance, MockResponse
 
-from test_etcd_manager import requests_post, requests_delete, requests_get
+
+def requests_post(url, **kwargs):
+    response = MockResponse()
+    data = json.loads(kwargs['data'])
+    if data['peerURLs'][0] in ['http://127.0.0.2:2380', 'http://127.0.0.3:2380']:
+        response.status_code = 201
+        response.content = '{"id":"ifoobar","name":"","peerURLs":["' + data['peerURLs'][0] + '"],"clientURLs":[""]}'
+    else:
+        response.status_code = 403
+    return response
 
 
 class TestEtcdMember(unittest.TestCase):
 
-    def __init__(self, method_name='runTest'):
-        self.setUp = self.set_up
-        super(TestEtcdMember, self).__init__(method_name)
-
-    def set_up(self):
-        self.old_requests_post = requests.post
-        self.old_requests_get = requests.get
-        self.old_requests_delete = requests.delete
-        requests.post = requests_post
-        requests.get = requests_get
-        requests.delete = requests_delete
-        self.ec2 = Instance()
-        self.ec2.id = 'i-foobar'
-        self.ec2.private_ip_address = '127.0.0.1'
-        self.ec2.private_dns_name = 'ip-127-0-0-1.eu-west-1.compute.internal'
-        self.ec2.tags = {'aws:cloudformation:stack-name': 'etc-cluster',
-                         'aws:autoscaling:groupName': 'etc-cluster-postgres'}
+    def setUp(self):
+        self.ec2 = MockInstance('i-foobar', '127.0.0.1')
         self.ec2_member = EtcdMember(self.ec2)
         self.etcd = {
             'id': 'deadbeef',
@@ -38,7 +33,7 @@ class TestEtcdMember(unittest.TestCase):
     def test_get_addr_from_urls(self):
         self.assertEqual(self.ec2_member.get_addr_from_urls(['http://1.2:3']), '1.2')
         self.assertEqual(self.ec2_member.get_addr_from_urls(['http://1.2']), '1.2')
-        self.assertEqual(self.ec2_member.get_addr_from_urls(['http//1.2']), None)
+        self.assertIsNone(self.ec2_member.get_addr_from_urls(['http//1.2']))
 
     def test_set_info_from_ec2_instance(self):
         self.assertEqual(self.etcd_member.addr, '127.0.0.2')
@@ -52,6 +47,7 @@ class TestEtcdMember(unittest.TestCase):
         self.ec2_member.set_info_from_etcd(self.etcd)
         self.etcd['name'] = 'i-foobar2'
 
+    @patch('requests.post', requests_post)
     def test_add_member(self):
         member = EtcdMember({
             'id': '',
@@ -59,13 +55,15 @@ class TestEtcdMember(unittest.TestCase):
             'clientURLs': [],
             'peerURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
         })
-        self.assertEqual(self.ec2_member.add_member(member), True)
+        self.assertTrue(self.ec2_member.add_member(member))
         member.addr = '127.0.0.4'
-        self.assertEqual(self.ec2_member.add_member(member), False)
+        self.assertFalse(self.ec2_member.add_member(member))
 
+    @patch('requests.get', requests_get)
     def test_is_leader(self):
-        self.assertEqual(self.ec2_member.is_leader(), True)
+        self.assertTrue(self.ec2_member.is_leader())
 
+    @patch('requests.delete', requests_delete)
     def test_delete_member(self):
         member = EtcdMember({
             'id': 'ifoobari7',
@@ -73,12 +71,14 @@ class TestEtcdMember(unittest.TestCase):
             'clientURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
             'peerURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
         })
-        self.assertEqual(self.ec2_member.delete_member(member), False)
+        self.assertFalse(self.ec2_member.delete_member(member))
 
+    @patch('requests.get', requests_get)
     def test_get_leader(self):
         self.ec2_member.addr = '127.0.0.7'
         self.assertEqual(self.ec2_member.get_leader(), 'ifoobari1')
 
+    @patch('requests.get', requests_get)
     def test_get_members(self):
         self.ec2_member.addr = '127.0.0.7'
         self.assertEqual(self.ec2_member.get_members(), [])
