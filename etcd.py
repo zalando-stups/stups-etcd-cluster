@@ -282,7 +282,7 @@ class EtcdManager:
         if not self.instance_id or not self.region:
             self.load_my_identities()
 
-        conn = boto3.resource('ec2')
+        conn = boto3.resource('ec2', region_name=self.region)
         for i in conn.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [self.instance_id]}]):
             if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
                 return EtcdMember(i)
@@ -295,7 +295,7 @@ class EtcdManager:
     def get_autoscaling_members(self):
         me = self.get_my_instace()
 
-        conn = boto3.resource('ec2')
+        conn = boto3.resource('ec2', region_name=self.region)
         instances = conn.instances.filter(
             Filters=[{'Name': 'tag:{}'.format(EtcdMember.AG_TAG), 'Values': [me.autoscaling_group]}])
 
