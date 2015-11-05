@@ -16,8 +16,6 @@ EXPOSE 2379 2380
 ## Install etcd
 RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl
 
-ADD etcd.py /bin/etcd.py
-
 WORKDIR $HOME
 USER ${USER}
 CMD ["/bin/etcd.py"]
