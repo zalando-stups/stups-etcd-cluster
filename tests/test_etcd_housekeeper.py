@@ -1,7 +1,5 @@
-import boto
 import unittest
 
-from boto.route53.record import Record
 from etcd import EtcdManager, HouseKeeper
 from mock import Mock, patch
 from test_etcd_manager import instances, requests_get, requests_delete, MockResponse
@@ -11,36 +9,6 @@ def requests_put(url, **kwargs):
     response = MockResponse()
     response.status_code = 201
     return response
-
-
-class MockZone:
-
-    def __init__(self, name):
-        self.name = name
-
-    def get_records(self):
-        if self.name != 'test.':
-            return []
-        r = Record()
-        r.name = '_etcd-server._tcp.cluster.' + self.name
-        r.type = 'SRV'
-        return [r]
-
-    def add_record(self, type, name, value):
-        pass
-
-    def update_record(self, old, new_value):
-        pass
-
-
-class MockRoute53Connection:
-
-    def get_zone(self, zone):
-        return (None if zone == 'bla' else MockZone(zone))
-
-
-def boto_route53_connect_to_region(region):
-    return MockRoute53Connection()
 
 
 class Popen:
@@ -61,7 +29,6 @@ class TestHouseKeeper(unittest.TestCase):
     @patch('boto3.resource')
     def setUp(self, res):
         res.return_value.instances.filter.return_value = instances()
-        boto.route53.connect_to_region = boto_route53_connect_to_region
         self.manager = EtcdManager()
         self.manager.get_my_instace()
         self.manager.instance_id = 'i-deadbeef3'
@@ -92,7 +59,9 @@ class TestHouseKeeper(unittest.TestCase):
         self.assertIsNone(self.keeper.remove_unhealthy_members(autoscaling_members))
 
     @patch('boto3.resource')
-    def test_update_route53_records(self, res):
+    @patch('boto3.client')
+    def test_update_route53_records(self, cli, res):
+        cli.return_value.list_hosted_zones_by_name.return_value = {'HostedZones': [{'Id': '', 'Name': 'test.'}]}
         res.return_value.instances.filter.return_value = instances()
         autoscaling_members = self.manager.get_autoscaling_members()
         self.assertIsNone(self.keeper.update_route53_records(autoscaling_members))
@@ -111,7 +80,8 @@ class TestHouseKeeper(unittest.TestCase):
     @patch('requests.delete', requests_delete)
     @patch('subprocess.Popen', Popen)
     @patch('boto3.resource')
-    def test_run(self, res):
+    @patch('boto3.client')
+    def test_run(self, cli, res):
         res.return_value.instances.filter.return_value = instances()
         self.assertRaises(Exception, self.keeper.run)
         self.keeper.manager.etcd_pid = 1

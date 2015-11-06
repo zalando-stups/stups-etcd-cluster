@@ -63,10 +63,10 @@ class MockInstance:
         self.id = id
         self.private_ip_address = ip
         self.private_dns_name = 'ip-{}.eu-west-1.compute.internal'.format(ip.replace('.', '-'))
-        self.tags = {
-            'aws:cloudformation:stack-name': 'etc-cluster',
-            'aws:autoscaling:groupName': 'etc-cluster-postgres'
-        }
+        self.tags = [
+            {'Key': 'aws:cloudformation:stack-name', 'Value': 'etc-cluster'},
+            {'Key': 'aws:autoscaling:groupName', 'Value': 'etc-cluster-postgres'}
+        ]
 
 
 def instances():
