@@ -66,9 +66,7 @@ class TestHouseKeeper(unittest.TestCase):
         autoscaling_members = self.manager.get_autoscaling_members()
         self.assertIsNone(self.keeper.update_route53_records(autoscaling_members))
         self.keeper.hosted_zone = 'bla'
-        self.assertIsNone(self.keeper.update_route53_records(autoscaling_members))
-        self.keeper.hosted_zone = 'test2'
-        self.assertIsNone(self.keeper.update_route53_records(autoscaling_members))
+        self.assertRaises(Exception, self.keeper.update_route53_records, autoscaling_members)
 
     @patch('subprocess.Popen', Popen)
     def test_cluster_unhealthy(self):
@@ -82,6 +80,7 @@ class TestHouseKeeper(unittest.TestCase):
     @patch('boto3.resource')
     @patch('boto3.client')
     def test_run(self, cli, res):
+        cli.return_value.list_hosted_zones_by_name.return_value = {'HostedZones': [{'Id': '', 'Name': 'test.'}]}
         res.return_value.instances.filter.return_value = instances()
         self.assertRaises(Exception, self.keeper.run)
         self.keeper.manager.etcd_pid = 1

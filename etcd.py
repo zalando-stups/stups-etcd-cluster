@@ -26,6 +26,10 @@ class EtcdClusterException(Exception):
     pass
 
 
+def tags_to_dict(tags):
+    return {t['Key']: t['Value'] for t in tags}
+
+
 class EtcdMember:
 
     API_TIMEOUT = 3.1
@@ -65,7 +69,7 @@ class EtcdMember:
         self.instance_id = instance.id
         self.addr = instance.private_ip_address
         self.dns = instance.private_dns_name
-        tags = {t['Key']: t['Value'] for t in instance.tags}
+        tags = tags_to_dict(instance.tags)
         self.cluster_token = tags['aws:cloudformation:stack-name']
         self.autoscaling_group = tags[self.AG_TAG]
 
@@ -284,10 +288,8 @@ class EtcdManager:
 
         conn = boto3.resource('ec2', region_name=self.region)
         for i in conn.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [self.instance_id]}]):
-            if i.id == self.instance_id:
-                tags = {t['Key']: t['Value'] for t in i.tags}
-                if EtcdMember.AG_TAG in tags:
-                    return EtcdMember(i)
+            if i.id == self.instance_id and EtcdMember.AG_TAG in tags_to_dict(i.tags):
+                return EtcdMember(i)
 
     def get_my_instance(self):
         if not self.me:
@@ -301,12 +303,8 @@ class EtcdManager:
         instances = conn.instances.filter(
             Filters=[{'Name': 'tag:{}'.format(EtcdMember.AG_TAG), 'Values': [me.autoscaling_group]}])
 
-        ret = []
-        for i in instances:
-            tags = {t['Key']: t['Value'] for t in i.tags}
-            if i.state != 'terminated' and tags.get(EtcdMember.AG_TAG, '') == me.autoscaling_group:
-                ret.append(i)
-        return ret
+        return [i for i in instances if i.state != 'terminated' and tags_to_dict(i.tags).get(EtcdMember.AG_TAG, '') ==
+                me.autoscaling_group]
 
     def clean_data_dir(self):
         path = self.DATA_DIR
@@ -456,7 +454,7 @@ class HouseKeeper(Thread):
         zones = conn.list_hosted_zones_by_name(DNSName=self.hosted_zone)
         zone = ([z for z in zones['HostedZones'] if z['Name'] == self.hosted_zone] or [None])[0]
         if not zone:
-            return
+            raise Exception('Failed to find hosted_zone {}'.format(self.hosted_zone))
         zone_id = zone['Id']
 
         stack_version = self.manager.me.cluster_token.split('-')[-1]
