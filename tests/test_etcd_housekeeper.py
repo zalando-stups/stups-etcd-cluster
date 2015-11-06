@@ -30,7 +30,7 @@ class TestHouseKeeper(unittest.TestCase):
     def setUp(self, res):
         res.return_value.instances.filter.return_value = instances()
         self.manager = EtcdManager()
-        self.manager.get_my_instace()
+        self.manager.get_my_instance()
         self.manager.instance_id = 'i-deadbeef3'
         self.manager.region = 'eu-west-1'
         self.keeper = HouseKeeper(self.manager, 'test.')

@@ -88,7 +88,7 @@ class TestEtcdManager(unittest.TestCase):
     def setUp(self, res):
         self.manager = EtcdManager()
         res.return_value.instances.filter.return_value = instances()
-        self.manager.find_my_instace()
+        self.manager.find_my_instance()
 
     @patch('boto3.resource')
     def test_get_autoscaling_members(self, res):
