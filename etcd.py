@@ -502,7 +502,7 @@ def sigterm_handler(signo, stack_frame):
 
 def main():
     signal.signal(signal.SIGTERM, sigterm_handler)
-    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.INFO)
     hosted_zone = os.environ.get('HOSTED_ZONE', None)
     manager = EtcdManager()
     try:
