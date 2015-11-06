@@ -9,7 +9,7 @@ ENV ETCDVERSION 2.2.1
 RUN useradd -d ${HOME} -k /etc/skel -s /bin/bash -m ${USER} && chmod 777 ${HOME}
 
 # Install boto
-RUN ln -s /usr/bin/python3 /usr/bin/python && pip3 install boto
+RUN ln -s /usr/bin/python3 /usr/bin/python && pip3 install boto3
 
 EXPOSE 2379 2380
 
