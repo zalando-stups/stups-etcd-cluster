@@ -29,7 +29,7 @@ For example, if you made are making an etcd cluster to be used by a service call
 
     senza create etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
-                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.2.1-p7
+                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.2.1-p7 \
                                    ScalyrAccountKey=abc123def
 
 ## Step 2: Confirm successful cluster creation
