@@ -3,8 +3,7 @@
 
 from __future__ import print_function
 
-import boto.ec2
-import boto.route53
+import boto3
 import json
 import logging
 import os
@@ -15,7 +14,6 @@ import subprocess
 import sys
 import time
 
-from boto.ec2.instance import Instance
 from threading import Thread
 
 if sys.hexversion >= 0x03000000:
@@ -26,6 +24,10 @@ else:
 
 class EtcdClusterException(Exception):
     pass
+
+
+def tags_to_dict(tags):
+    return {t['Key']: t['Value'] for t in tags}
 
 
 class EtcdMember:
@@ -50,10 +52,10 @@ class EtcdMember:
         self.client_urls = []  # these values could be assigned only from the running etcd
         self.peer_urls = []  # cluster by performing http://addr:client_port/v2/members api call
 
-        if isinstance(arg, Instance):
-            self.set_info_from_ec2_instance(arg)
-        else:
+        if isinstance(arg, dict):
             self.set_info_from_etcd(arg)
+        else:
+            self.set_info_from_ec2_instance(arg)
 
     def set_info_from_ec2_instance(self, instance):
         # by convention member.name == instance.id
@@ -67,8 +69,9 @@ class EtcdMember:
         self.instance_id = instance.id
         self.addr = instance.private_ip_address
         self.dns = instance.private_dns_name
-        self.cluster_token = instance.tags['aws:cloudformation:stack-name']
-        self.autoscaling_group = instance.tags[self.AG_TAG]
+        tags = tags_to_dict(instance.tags)
+        self.cluster_token = tags['aws:cloudformation:stack-name']
+        self.autoscaling_group = tags[self.AG_TAG]
 
     @staticmethod
     def get_addr_from_urls(urls):
@@ -283,11 +286,10 @@ class EtcdManager:
         if not self.instance_id or not self.region:
             self.load_my_identities()
 
-        conn = boto.ec2.connect_to_region(self.region)
-        for r in conn.get_all_reservations(filters={'instance_id': self.instance_id}):
-            for i in r.instances:
-                if i.id == self.instance_id and EtcdMember.AG_TAG in i.tags:
-                    return EtcdMember(i)
+        conn = boto3.resource('ec2', region_name=self.region)
+        for i in conn.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [self.instance_id]}]):
+            if i.id == self.instance_id and EtcdMember.AG_TAG in tags_to_dict(i.tags):
+                return EtcdMember(i)
 
     def get_my_instance(self):
         if not self.me:
@@ -297,11 +299,12 @@ class EtcdManager:
     def get_autoscaling_members(self):
         me = self.get_my_instance()
 
-        conn = boto.ec2.connect_to_region(self.region)
-        res = conn.get_all_reservations(filters={'tag:{}'.format(EtcdMember.AG_TAG): me.autoscaling_group})
+        conn = boto3.resource('ec2', region_name=self.region)
+        instances = conn.instances.filter(
+            Filters=[{'Name': 'tag:{}'.format(EtcdMember.AG_TAG), 'Values': [me.autoscaling_group]}])
 
-        return [i for r in res for i in r.instances if i.state != 'terminated' and i.tags.get(EtcdMember.AG_TAG, '')
-                == me.autoscaling_group]
+        return [i for i in instances if i.state != 'terminated' and tags_to_dict(i.tags).get(EtcdMember.AG_TAG, '') ==
+                me.autoscaling_group]
 
     def clean_data_dir(self):
         path = self.DATA_DIR
@@ -392,6 +395,8 @@ class HouseKeeper(Thread):
         self.daemon = True
         self.manager = manager
         self.hosted_zone = hosted_zone
+        if hosted_zone:
+            self.hosted_zone = hosted_zone.rstrip('.') + '.'
         self.members = {}
         self.unhealthy_members = {}
 
@@ -426,36 +431,47 @@ class HouseKeeper(Thread):
         for m in members.values():
             self.manager.me.delete_member(m)
 
-    @staticmethod
-    def update_record(zone, record_type, record_name, new_value):
-        records = zone.get_records()
-        old_records = [r for r in records if r.type.upper() == record_type and r.name.lower().startswith(record_name)]
-
-        if len(old_records) == 0:
-            return zone.add_record(record_type, record_name, new_value)
-
-        if set(old_records[0].resource_records) != set(new_value):
-            return zone.update_record(old_records[0], new_value)
+    def update_record(self, conn, zone_id, rtype, rname, new_value):
+        conn.change_resource_record_sets(
+            HostedZoneId=zone_id,
+            ChangeBatch={
+                'Changes': [
+                    {
+                        'Action': 'UPSERT',
+                        'ResourceRecordSet': {
+                            'Name': rname,
+                            'Type': rtype,
+                            'TTL': 60,
+                            'ResourceRecords': new_value,
+                        }
+                    }
+                ]
+            }
+        )
 
     def update_route53_records(self, autoscaling_members):
-        conn = boto.route53.connect_to_region('universal')
-        zone = conn.get_zone(self.hosted_zone)
+        conn = boto3.client('route53', region_name='universal')
+        zones = conn.list_hosted_zones_by_name(DNSName=self.hosted_zone)
+        zone = ([z for z in zones['HostedZones'] if z['Name'] == self.hosted_zone] or [None])[0]
         if not zone:
-            return
+            raise Exception('Failed to find hosted_zone {}'.format(self.hosted_zone))
+        zone_id = zone['Id']
 
         stack_version = self.manager.me.cluster_token.split('-')[-1]
         members = {m.addr: m for m in map(EtcdMember, self.members.values())}
 
-        new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].peer_port, i.private_dns_name])) for i in
-                      autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'SRV', '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
+        record_name = '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone)
+        new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.private_ip_address].peer_port, i.private_dns_name]))}
+                      for i in autoscaling_members if i.private_ip_address in members]
+        self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        new_record = [' '.join(map(str, [1, 1, members[i.private_ip_address].client_port, i.private_dns_name])) for i in
-                      autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'SRV', '_etcd._tcp.{}.{}'.format(stack_version, self.hosted_zone), new_record)
+        record_name = '_etcd._tcp.{}.{}'.format(stack_version, self.hosted_zone)
+        new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.private_ip_address].client_port,
+                      i.private_dns_name]))} for i in autoscaling_members if i.private_ip_address in members]
+        self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        new_record = [i.private_ip_address for i in autoscaling_members if i.private_ip_address in members]
-        self.update_record(zone, 'A', 'etcd-server.{}.{}'.format(stack_version, self.hosted_zone), new_record)
+        new_record = [{'Value': i.private_ip_address} for i in autoscaling_members if i.private_ip_address in members]
+        self.update_record(conn, zone_id, 'A', 'etcd-server.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
     def run(self):
         update_required = False
@@ -484,7 +500,7 @@ def sigterm_handler(signo, stack_frame):
 
 def main():
     signal.signal(signal.SIGTERM, sigterm_handler)
-    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.INFO)
     hosted_zone = os.environ.get('HOSTED_ZONE', None)
     manager = EtcdManager()
     try:

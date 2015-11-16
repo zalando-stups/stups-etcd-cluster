@@ -1,12 +1,9 @@
-import boto.ec2
 import json
 import os
-import requests
-import time
 import unittest
 
-from boto.ec2.instance import Instance
 from etcd import EtcdCluster, EtcdClusterException, EtcdManager, EtcdMember, HouseKeeper, main, sigterm_handler
+from mock import Mock, patch
 
 
 class MockResponse:
@@ -17,17 +14,6 @@ class MockResponse:
 
     def json(self):
         return json.loads(self.content)
-
-
-def requests_post(url, **kwargs):
-    response = MockResponse()
-    data = json.loads(kwargs['data'])
-    if data['peerURLs'][0] in ['http://127.0.0.2:2380', 'http://127.0.0.3:2380']:
-        response.status_code = 201
-        response.content = '{"id":"ifoobar","name":"","peerURLs":["' + data['peerURLs'][0] + '"],"clientURLs":[""]}'
-    else:
-        response.status_code = 403
-    return response
 
 
 def requests_get(url, **kwargs):
@@ -69,56 +55,44 @@ class MockReservation:
         self.instances = [instance]
 
 
-class MockEc2Connection:
+class MockInstance:
 
-    def generate_instance(self, id, ip):
-        i = Instance()
-        i.id = id
-        i.private_ip_address = ip
-        i.private_dns_name = 'ip-{}.eu-west-1.compute.internal'.format(ip.replace('.', '-'))
-        i.tags = {'aws:cloudformation:stack-name': 'etc-cluster', 'aws:autoscaling:groupName': 'etc-cluster-postgres'}
-        return i
+    state = 'running'
 
-    def get_all_reservations(self, filters=None):
-        return [MockReservation(self.generate_instance('i-deadbeef1', '127.0.0.1')),
-                MockReservation(self.generate_instance('i-deadbeef2', '127.0.0.2')),
-                MockReservation(self.generate_instance('i-deadbeef3', '127.0.0.3'))]
+    def __init__(self, id, ip):
+        self.id = id
+        self.private_ip_address = ip
+        self.private_dns_name = 'ip-{}.eu-west-1.compute.internal'.format(ip.replace('.', '-'))
+        self.tags = [
+            {'Key': 'aws:cloudformation:stack-name', 'Value': 'etc-cluster'},
+            {'Key': 'aws:autoscaling:groupName', 'Value': 'etc-cluster-postgres'}
+        ]
 
 
-def boto_ec2_connect_to_region(region):
-    return MockEc2Connection()
+def instances():
+    return [
+        MockInstance('i-deadbeef1', '127.0.0.1'),
+        MockInstance('i-deadbeef2', '127.0.0.2'),
+        MockInstance('i-deadbeef3', '127.0.0.3')
+    ]
 
 
 class SleepException(Exception):
     pass
 
 
-def sleep_exception(_):
-    raise SleepException
-
-
-def raise_exception(*args):
-    raise Exception
-
-
-def system_exit(_):
-    raise SystemExit
-
-
 class TestEtcdManager(unittest.TestCase):
 
-    def __init__(self, method_name='runTest'):
-        self.setUp = self.set_up
-        super(TestEtcdManager, self).__init__(method_name)
-
-    def set_up(self):
-        time.sleep = lambda e: None
-        requests.get = requests_get
-        boto.ec2.connect_to_region = boto_ec2_connect_to_region
+    @patch('boto3.resource')
+    @patch('requests.get', requests_get)
+    def setUp(self, res):
         self.manager = EtcdManager()
+        res.return_value.instances.filter.return_value = instances()
         self.manager.find_my_instance()
 
-    def test_get_autoscaling_members(self):
+    @patch('boto3.resource')
+    def test_get_autoscaling_members(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.assertEqual(len(self.manager.get_autoscaling_members()), 3)
         self.assertEqual(self.manager.instance_id, 'i-deadbeef3')
         self.assertEqual(self.manager.region, 'eu-west-1')
@@ -130,31 +104,33 @@ class TestEtcdManager(unittest.TestCase):
         open(self.manager.DATA_DIR, 'w').close()
         self.manager.clean_data_dir()
         os.symlink('foo', self.manager.DATA_DIR)
-        old_unlink = os.unlink
-        os.unlink = raise_exception
-        self.manager.clean_data_dir()
-        os.unlink = old_unlink
+        with patch('os.unlink', Mock(side_effect=Exception)):
+            self.manager.clean_data_dir()
         self.manager.clean_data_dir()
 
+    @patch('requests.get', requests_get_bad_status)
     def test_load_my_identities(self):
-        requests.get = requests_get_bad_status
         self.assertRaises(EtcdClusterException, self.manager.load_my_identities)
 
-    def test_register_me(self):
+    @patch('time.sleep', Mock())
+    @patch('requests.get', requests_get)
+    @patch('boto3.resource')
+    def test_register_me(self, res):
+        res.return_value.instances.filter.return_value = instances()
         cluster = EtcdCluster(self.manager)
         cluster.load_members()
         self.manager.me.id = '1'
         self.manager.register_me(cluster)
 
         self.manager.me.id = None
-        cluster.accessible_member.add_member = lambda e: False
+        cluster.accessible_member.add_member = Mock(return_value=False)
         self.assertRaises(EtcdClusterException, self.manager.register_me, cluster)
 
         self.manager.me.client_urls = ['a']
-        cluster.accessible_member.delete_member = lambda e: False
+        cluster.accessible_member.delete_member = Mock(return_value=False)
         self.assertRaises(EtcdClusterException, self.manager.register_me, cluster)
 
-        cluster.accessible_member.delete_member = cluster.accessible_member.add_member = lambda e: True
+        cluster.accessible_member.delete_member = cluster.accessible_member.add_member = Mock(return_value=True)
         self.manager.register_me(cluster)
 
         cluster.leader_id = None
@@ -163,49 +139,40 @@ class TestEtcdManager(unittest.TestCase):
         cluster.accessible_member = None
         self.manager.register_me(cluster)
 
-    def test_run(self):
-        os.path.exists = lambda e: True
-        os.execv = raise_exception
-        os.fork = lambda: 0
-        time.sleep = sleep_exception
+    @patch('boto3.resource')
+    @patch('os.path.exists', Mock(return_value=True))
+    @patch('os.execv', Mock(side_effect=Exception))
+    @patch('os.fork', Mock(return_value=0))
+    @patch('time.sleep', Mock(side_effect=SleepException))
+    @patch('requests.get', requests_get)
+    def test_run(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.assertRaises(SleepException, self.manager.run)
 
-        os.fork = lambda: 1
-        os.waitpid = lambda a, b: (1, 0)
-        self.assertRaises(SleepException, self.manager.run)
-
-        load_members = EtcdCluster.load_members
-        EtcdCluster.load_members = system_exit
-        self.manager.run()
-        EtcdCluster.load_members = load_members
+        with patch('os.fork', Mock(return_value=1)):
+            with patch('os.waitpid', Mock(return_value=(1, 0))):
+                self.assertRaises(SleepException, self.manager.run)
+                with patch.object(EtcdCluster, 'load_members', Mock(side_effect=SystemExit)):
+                    self.manager.run()
 
 
 class TestMain(unittest.TestCase):
 
-    def __init__(self, method_name='runTest'):
-        self.setUp = self.set_up
-        super(TestMain, self).__init__(method_name)
-
-    def set_up(self):
-        requests.get = requests_get
-        boto.ec2.connect_to_region = boto_ec2_connect_to_region
-
     def test_sigterm_handler(self):
         self.assertRaises(SystemExit, sigterm_handler, None, None)
 
-    def test_main(self):
-        delete_member = EtcdMember.delete_member
-        start_housekeeper = HouseKeeper.start
-        HouseKeeper.start = lambda e: None
-        os.fork = lambda: 1
-        os.waitpid = lambda a, b: (1, 0)
-        time.sleep = sleep_exception
+    @patch('requests.get', requests_get)
+    @patch('requests.delete', requests_delete)
+    @patch.object(HouseKeeper, 'start', Mock())
+    @patch.object(EtcdMember, 'delete_member', Mock(return_value=False))
+    @patch('os.fork', Mock(return_value=1))
+    @patch('os.waitpid', Mock(return_value=(1, 0)))
+    @patch('time.sleep', Mock(side_effect=SleepException))
+    @patch('boto3.resource')
+    def test_main(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.assertRaises(SleepException, main)
-        EtcdMember.delete_member = lambda s, e: False
-        self.assertRaises(SleepException, main)
-        requests.get = requests_get_bad_status
-        self.assertRaises(SleepException, main)
-        requests.get = requests_get_bad_etcd
-        self.assertRaises(SleepException, main)
-        EtcdMember.delete_member = delete_member
-        HouseKeeper.start = start_housekeeper
+        with patch('requests.get', requests_get_bad_status):
+            self.assertRaises(SleepException, main)
+        with patch('requests.get', requests_get_bad_etcd):
+            self.assertRaises(SleepException, main)

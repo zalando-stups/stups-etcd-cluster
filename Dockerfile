@@ -1,4 +1,4 @@
-FROM zalando/python:3.4.0-4
+FROM zalando/python:3.5.0-3
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
@@ -9,7 +9,7 @@ ENV ETCDVERSION 2.2.1
 RUN useradd -d ${HOME} -k /etc/skel -s /bin/bash -m ${USER} && chmod 777 ${HOME}
 
 # Install boto
-RUN ln -s /usr/bin/python3 /usr/bin/python && pip3 install boto
+RUN pip3 install boto3
 
 EXPOSE 2379 2380
 

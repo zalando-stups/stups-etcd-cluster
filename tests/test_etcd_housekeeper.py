@@ -1,53 +1,14 @@
-import boto
-import requests
-import subprocess
-import time
 import unittest
 
-from boto.route53.record import Record
 from etcd import EtcdManager, HouseKeeper
-
-from test_etcd_manager import boto_ec2_connect_to_region, requests_get, requests_delete, MockResponse
+from mock import Mock, patch
+from test_etcd_manager import instances, requests_get, requests_delete, MockResponse
 
 
 def requests_put(url, **kwargs):
     response = MockResponse()
     response.status_code = 201
     return response
-
-
-def raise_exception(*args, **kwargs):
-    raise Exception()
-
-
-class MockZone:
-
-    def __init__(self, name):
-        self.name = name
-
-    def get_records(self):
-        if self.name != 'test.':
-            return []
-        r = Record()
-        r.name = '_etcd-server._tcp.cluster.' + self.name
-        r.type = 'SRV'
-        return [r]
-
-    def add_record(self, type, name, value):
-        pass
-
-    def update_record(self, old, new_value):
-        pass
-
-
-class MockRoute53Connection:
-
-    def get_zone(self, zone):
-        return (None if zone == 'bla' else MockZone(zone))
-
-
-def boto_route53_connect_to_region(region):
-    return MockRoute53Connection()
 
 
 class Popen:
@@ -64,17 +25,10 @@ class Popen:
 
 class TestHouseKeeper(unittest.TestCase):
 
-    def __init__(self, method_name='runTest'):
-        self.setUp = self.set_up
-        super(TestHouseKeeper, self).__init__(method_name)
-
-    def set_up(self):
-        subprocess.Popen = Popen
-        requests.get = requests_get
-        requests.put = requests_put
-        requests.delete = requests_delete
-        boto.ec2.connect_to_region = boto_ec2_connect_to_region
-        boto.route53.connect_to_region = boto_route53_connect_to_region
+    @patch('requests.get', requests_get)
+    @patch('boto3.resource')
+    def setUp(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.manager = EtcdManager()
         self.manager.get_my_instance()
         self.manager.instance_id = 'i-deadbeef3'
@@ -82,37 +36,54 @@ class TestHouseKeeper(unittest.TestCase):
         self.keeper = HouseKeeper(self.manager, 'test.')
         self.members_changed = self.keeper.members_changed()
 
+    @patch('requests.get', requests_get)
     def test_members_changed(self):
-        self.assertEqual(self.members_changed, True)
+        self.assertTrue(self.members_changed)
         self.keeper.members['blabla'] = True
-        self.assertEqual(self.keeper.members_changed(), True)
-        self.assertEqual(self.keeper.members_changed(), False)
+        self.assertTrue(self.keeper.members_changed())
+        self.assertFalse(self.keeper.members_changed())
 
+    @patch('requests.get', requests_get)
     def test_is_leader(self):
-        self.assertEqual(self.keeper.is_leader(), True)
+        self.assertTrue(self.keeper.is_leader())
 
+    @patch('requests.put', requests_put)
     def test_acquire_lock(self):
-        self.assertEqual(self.keeper.acquire_lock(), True)
+        self.assertTrue(self.keeper.acquire_lock())
 
-    def test_remove_unhealthy_members(self):
+    @patch('requests.delete', requests_delete)
+    @patch('boto3.resource')
+    def test_remove_unhealthy_members(self, res):
+        res.return_value.instances.filter.return_value = instances()
         autoscaling_members = self.manager.get_autoscaling_members()
-        self.assertEqual(self.keeper.remove_unhealthy_members(autoscaling_members), None)
+        self.assertIsNone(self.keeper.remove_unhealthy_members(autoscaling_members))
 
-    def test_update_route53_records(self):
+    @patch('boto3.resource')
+    @patch('boto3.client')
+    def test_update_route53_records(self, cli, res):
+        cli.return_value.list_hosted_zones_by_name.return_value = {'HostedZones': [{'Id': '', 'Name': 'test.'}]}
+        res.return_value.instances.filter.return_value = instances()
         autoscaling_members = self.manager.get_autoscaling_members()
-        self.assertEqual(self.keeper.update_route53_records(autoscaling_members), None)
+        self.assertIsNone(self.keeper.update_route53_records(autoscaling_members))
         self.keeper.hosted_zone = 'bla'
-        self.assertEqual(self.keeper.update_route53_records(autoscaling_members), None)
-        self.keeper.hosted_zone = 'test2'
-        self.assertEqual(self.keeper.update_route53_records(autoscaling_members), None)
+        self.assertRaises(Exception, self.keeper.update_route53_records, autoscaling_members)
 
+    @patch('subprocess.Popen', Popen)
     def test_cluster_unhealthy(self):
-        self.assertEqual(self.keeper.cluster_unhealthy(), True)
+        self.assertTrue(self.keeper.cluster_unhealthy())
 
-    def test_run(self):
-        time.sleep = raise_exception
+    @patch('time.sleep', Mock(side_effect=Exception))
+    @patch('requests.get', requests_get)
+    @patch('requests.put', requests_put)
+    @patch('requests.delete', requests_delete)
+    @patch('subprocess.Popen', Popen)
+    @patch('boto3.resource')
+    @patch('boto3.client')
+    def test_run(self, cli, res):
+        cli.return_value.list_hosted_zones_by_name.return_value = {'HostedZones': [{'Id': '', 'Name': 'test.'}]}
+        res.return_value.instances.filter.return_value = instances()
         self.assertRaises(Exception, self.keeper.run)
         self.keeper.manager.etcd_pid = 1
         self.assertRaises(Exception, self.keeper.run)
-        self.keeper.is_leader = raise_exception
+        self.keeper.is_leader = Mock(side_effect=Exception)
         self.assertRaises(Exception, self.keeper.run)

@@ -1,35 +1,28 @@
-import boto.ec2
-import requests
 import unittest
 
 from etcd import EtcdCluster, EtcdManager, EtcdMember
-
-from test_etcd_manager import requests_get, boto_ec2_connect_to_region
-
-
-def requests_get_fail(*args, **kwargs):
-    raise Exception
+from mock import Mock, patch
+from test_etcd_manager import requests_get, instances
 
 
 class TestEtcdCluster(unittest.TestCase):
 
-    def __init__(self, method_name='runTest'):
-        self.setUp = self.set_up
-        super(TestEtcdCluster, self).__init__(method_name)
-
-    def set_up(self):
-        requests.get = requests_get
-        boto.ec2.connect_to_region = boto_ec2_connect_to_region
+    @patch('requests.get', requests_get)
+    @patch('boto3.resource')
+    def setUp(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.manager = EtcdManager()
         self.manager.instance_id = 'i-deadbeef3'
         self.manager.region = 'eu-west-1'
         self.cluster = EtcdCluster(self.manager)
         self.cluster.load_members()
 
-    def test_load_members(self):
+    @patch('boto3.resource')
+    def test_load_members(self, res):
+        res.return_value.instances.filter.return_value = instances()
         self.assertEqual(len(self.cluster.members), 4)
-        requests.get = requests_get_fail
-        self.cluster.load_members()
+        with patch('requests.get', Mock(side_effect=Exception)):
+            self.cluster.load_members()
 
     def test_is_healthy(self):
         me = EtcdMember({
