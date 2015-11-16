@@ -29,13 +29,13 @@ For example, if you made are making an etcd cluster to be used by a service call
 
     senza create etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
-                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.2.1-p7
+                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.2.1-p7 \
                                    ScalyrAccountKey=abc123def
 
 ## Step 2: Confirm successful cluster creation
 Running this `senza create` command should have created:
 - the required amount of EC2 instances
-    - with stack name `etcd-cluster-releaseetcd`
+    - with stack name `etcd-cluster`
     - with instance name `etcd-cluster-releaseetcd`
 - a security group allowing etcd's ports 2379 and 2380
 - a role that allows List and Describe EC2 resources and create records in a Route53
