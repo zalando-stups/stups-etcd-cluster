@@ -44,3 +44,6 @@ Running this `senza create` command should have created:
     - a SRV record of the form `_etcd-server._tcp.releaseetcd.elephant.example.org.` with port = 2380, i.e. peer port
     - a SRV record of the form `_etcd._tcp.releaseetcd.elephant.example.org.` with port = 2379, i.e. client port
 
+Demo
+====
+[![Demo on asciicast](https://asciinema.org/a/32703.png)](https://asciinema.org/a/32703)
