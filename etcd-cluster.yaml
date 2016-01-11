@@ -22,7 +22,7 @@ SenzaComponents:
           partition: none
           filesystem: tmpfs
           erase_on_boot: false
-          options: size=512m
+          options: size=5120m
       scalyr_account_key: '{{Arguments.ScalyrAccountKey}}'
     Type: Senza::TaupageAutoScalingGroup
     AutoScaling:
