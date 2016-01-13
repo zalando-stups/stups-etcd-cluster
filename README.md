@@ -28,7 +28,7 @@ A cluster can be creating by issuing such a command:
 For example, if you made are making an etcd cluster to be used by a service called `foo`, you could issue the following:
 
     senza create https://raw.github.com/zalando/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
-                                   ApplicationId=YourAppId
+                                   ApplicationId=YourAppId \
                                    HostedZone=elephant.example.org \
                                    DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.2.3-p7 \
                                    ScalyrAccountKey=abc123def
