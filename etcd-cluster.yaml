@@ -10,6 +10,8 @@ SenzaComponents:
       - EtcdSecurityGroup
       - GroupId
     TaupageConfig:
+      application_id: "{{Arguments.ApplicationId}}"
+      application_version: "{{Arguments.DockerImage}}"
       ports:
         2379: 2379
         2380: 2380
@@ -31,6 +33,8 @@ SenzaComponents:
       MetricType: CPU
 SenzaInfo:
   Parameters:
+  - ApplicationId:
+      Description: Application ID registered with kio
   - HostedZone:
       Description: AWS Hosted Zone to work with
   - DockerImage:
