@@ -52,6 +52,20 @@ Resources:
         FromPort: 2379
         ToPort: 2380
         CidrIp: 0.0.0.0/0
+  EtcdIngressMembers:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId:
+        Fn::GetAtt:
+          - EtcdSecurityGroup
+          - GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - EtcdSecurityGroup
+          - GroupId
   EtcdRole:
     Type: AWS::IAM::Role
     Properties:
