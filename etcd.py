@@ -450,7 +450,7 @@ class HouseKeeper(Thread):
         )
 
     def update_route53_records(self, autoscaling_members):
-        conn = boto3.client('route53', region_name='universal')
+        conn = boto3.client('route53', region_name=self.manager.region)
         zones = conn.list_hosted_zones_by_name(DNSName=self.hosted_zone)
         zone = ([z for z in zones['HostedZones'] if z['Name'] == self.hosted_zone] or [None])[0]
         if not zone:
@@ -494,8 +494,14 @@ class HouseKeeper(Thread):
             time.sleep(self.NAPTIME)
 
 
+__ignore_sigterm = False
+
+
 def sigterm_handler(signo, stack_frame):
-    sys.exit()
+    global __ignore_sigterm
+    if not __ignore_sigterm:
+        __ignore_sigterm = True
+        sys.exit()
 
 
 def main():
