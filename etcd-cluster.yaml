@@ -37,6 +37,7 @@ SenzaInfo:
       Description: Docker image of etcd-cluster.
   - ScalyrAccountKey:
       Description: scalyr account key
+      Default: ""
   StackName: etcd-cluster
 Resources:
   EtcdSecurityGroup:
