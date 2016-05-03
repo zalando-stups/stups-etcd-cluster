@@ -40,3 +40,6 @@ junit.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# File containing commit status, to be put into Docker
+scm-source.json

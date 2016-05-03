@@ -20,5 +20,6 @@ COPY etcd.py /bin/etcd.py
 COPY scm-source.json /scm-source.json
 
 WORKDIR $HOME
+COPY scm-source.json /scm-source.json
 USER ${USER}
 CMD ["/bin/etcd.py"]
