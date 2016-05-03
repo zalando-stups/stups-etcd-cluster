@@ -1,9 +1,11 @@
-FROM zalando/python:3.5.0-3
+FROM ubuntu:14.04
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
+
+RUN apt-get update && apt-get install python3-pip curl -y && apt-get clean
 
 ENV USER etcd
 ENV HOME /home/${USER}
-ENV ETCDVERSION 2.3.1
+ENV ETCDVERSION 2.3.3
 
 # Create home directory for etcd
 RUN useradd -d ${HOME} -k /etc/skel -s /bin/bash -m ${USER} && chmod 777 ${HOME}
