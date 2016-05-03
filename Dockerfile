@@ -1,5 +1,7 @@
-FROM zalando/python:3.5.0-3
+FROM ubuntu:14.04
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
+
+RUN apt-get update && apt-get install python3-pip curl -y && apt-get clean
 
 ENV USER etcd
 ENV HOME /home/${USER}
