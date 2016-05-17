@@ -53,6 +53,10 @@ Resources:
         FromPort: 2379
         ToPort: 2380
         CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 9100
+        ToPort: 9100
+        CidrIp: 0.0.0.0/0
   EtcdIngressMembers:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
