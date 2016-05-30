@@ -1,9 +1,9 @@
-FROM zalando/python:3.5.0-3
+FROM registry.opensource.zalan.do/stups/python:3.5.1-18
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
 ENV HOME /home/${USER}
-ENV ETCDVERSION 2.3.1
+ENV ETCDVERSION 2.3.6
 
 # Create home directory for etcd
 RUN useradd -d ${HOME} -k /etc/skel -s /bin/bash -m ${USER} && chmod 777 ${HOME}
