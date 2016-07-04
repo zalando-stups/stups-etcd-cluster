@@ -1,4 +1,4 @@
-FROM registry.opensource.zalan.do/stups/python:3.5.1-21
+FROM registry.opensource.zalan.do/stups/python:3.5.1-23
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
