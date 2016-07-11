@@ -117,7 +117,7 @@ def setup_package():
         test_suite='tests',
         packages=[],
         install_requires=get_install_requirements('requirements.txt'),
-        setup_requires=['six', 'flake8'],
+        setup_requires=['flake8>=2.5.4'],
         cmdclass=cmdclass,
         tests_require=['pytest-cov', 'pytest'],
         command_options=command_options,
