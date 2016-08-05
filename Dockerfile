@@ -3,7 +3,7 @@ MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
 ENV HOME /home/${USER}
-ENV ETCDVERSION 2.3.7
+ENV ETCDVERSION 3.0.4
 
 # Create home directory for etcd
 RUN useradd -d ${HOME} -k /etc/skel -s /bin/bash -m ${USER} && chmod 777 ${HOME}
