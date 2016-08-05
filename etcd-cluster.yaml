@@ -23,7 +23,7 @@ SenzaComponents:
           filesystem: tmpfs
           erase_on_boot: false
           options: size=512m
-      scalyr_account_key: '{{Arguments.ScalyrAccountKey}}'
+      appdynamics_application: 'etcd-cluster-{{Arguments.version}}'
     Type: Senza::TaupageAutoScalingGroup
     AutoScaling:
       Minimum: 5
@@ -35,9 +35,6 @@ SenzaInfo:
       Description: AWS Hosted Zone to work with
   - DockerImage:
       Description: Docker image of etcd-cluster.
-  - ScalyrAccountKey:
-      Description: scalyr account key
-      Default: ""
   StackName: etcd-cluster
 Resources:
   EtcdSecurityGroup:

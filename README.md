@@ -23,14 +23,13 @@ Usage
 ## Step 1: Create an etcd cluster
 A cluster can be creating by issuing such a command:
 
-    senza create etcd-cluster.yaml STACK_VERSION HOSTED_ZONE DOCKER_IMAGE SCALYR_KEY
+    senza create etcd-cluster.yaml STACK_VERSION HOSTED_ZONE DOCKER_IMAGE
 
 For example, if you made are making an etcd cluster to be used by a service called `foo`, you could issue the following:
 
     senza create https://raw.github.com/zalando/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
-                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.3.6-p10 \
-                                   ScalyrAccountKey=abc123def # optional
+                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.3.6-p10
 
 ## Step 2: Confirm successful cluster creation
 Running this `senza create` command should have created:
