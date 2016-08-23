@@ -138,11 +138,15 @@ class EtcdMember:
                       response.content)
         return (response.json() if response.status_code == 201 else None)
 
-    def api_delete(self, endpoint):
+    def api_delete(self, endpoint, data=None):
         url = self.get_client_url(endpoint)
-        response = requests.delete(url)
+        response = requests.delete(url, data=data)
         logging.debug('Got response from DELETE %s: code=%s content=%s', url, response.status_code, response.content)
         return response.status_code == 204
+
+    def get_cluster_version(self):
+        response = requests.get(self.get_client_url() + '/version')
+        return response.json()['etcdcluster'] if response.status_code == 200 else None
 
     def is_leader(self):
         return not self.api_get('stats/leader') is None
@@ -196,7 +200,12 @@ class EtcdCluster:
         self.manager = manager
         self.accessible_member = None
         self.leader_id = None
+        self.cluster_version = None
         self.members = []
+
+    @property
+    def is_v3(self):
+        return self.cluster_version is not None and self.cluster_version.startswith('3.')
 
     @staticmethod
     def merge_member_lists(ec2_members, etcd_members):
@@ -232,6 +241,7 @@ class EtcdCluster:
                     if etcd_members:  # We've found accessible etcd member
                         self.accessible_member = member
                         self.leader_id = member.get_leader()  # Let's ask him about leader of etcd-cluster
+                        self.cluster_version = member.get_cluster_version()  # and about cluster-wide etcd version
                         break
                 except:
                     logging.exception('Load members from etcd')
@@ -272,6 +282,7 @@ class EtcdManager:
         self.instance_id = None
         self.me = None
         self.etcd_pid = 0
+        self.runv2 = False
 
     def load_my_identities(self):
         url = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
@@ -354,6 +365,8 @@ class EtcdManager:
                     raise EtcdClusterException('Can not register myself in etcd cluster')
                 time.sleep(self.NAPTIME)
 
+        self.runv2 = add_member and cluster_state == 'existing' and not cluster.is_v3
+
         peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
                          if (include_ec2_instances and m.instance_id) or m.peer_urls])
 
@@ -369,12 +382,13 @@ class EtcdManager:
 
                 if cluster.is_healthy(self.me):
                     args = self.register_me(cluster)
+                    binary = self.ETCD_BINARY + ('v2' if self.runv2 else '')
 
                     self.etcd_pid = os.fork()
                     if self.etcd_pid == 0:
-                        os.execv(self.ETCD_BINARY, [self.ETCD_BINARY] + args)
+                        os.execv(binary, [binary] + args)
 
-                    logging.info('Started new etcd process with pid: %s and args: %s', self.etcd_pid, args)
+                    logging.info('Started new %s process with pid: %s and args: %s', binary, self.etcd_pid, args)
                     pid, status = os.waitpid(self.etcd_pid, 0)
                     logging.warning('Process %s finished with exit code %s', pid, status >> 8)
                     self.etcd_pid = 0
@@ -404,8 +418,18 @@ class HouseKeeper(Thread):
         return self.manager.me.is_leader()
 
     def acquire_lock(self):
-        data = data = {'value': self.manager.instance_id, 'ttl': self.NAPTIME, 'prevExist': False}
-        return not self.manager.me.api_put('keys/_self_maintenance_lock', data=data) is None
+        data = {'value': self.manager.instance_id, 'ttl': self.NAPTIME, 'prevExist': False}
+        return self.manager.me.api_put('keys/_self_maintenance_lock', data=data) is not None
+
+    def take_upgrade_lock(self, ttl):
+        data = {'value': self.manager.instance_id, 'ttl': ttl, 'prevExist': False}
+        return self.manager.me.api_put('keys/_upgrade_lock', data=data) is not None
+
+    def release_upgrade_lock(self):
+        return self.manager.me.api_delete('keys/_upgrade_lock', data={'value': self.manager.instance_id})
+
+    def check_upgrade_lock(self):
+        return self.manager.me.api_get('keys/_upgrade_lock') is not None
 
     def members_changed(self):
         old_members = self.members.copy()
@@ -418,7 +442,7 @@ class HouseKeeper(Thread):
     def cluster_unhealthy(self):
         process = subprocess.Popen([self.manager.ETCD_BINARY + 'ctl', 'cluster-health'],
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        ret = any('is unhealthy' in str(line) or 'is unreachable' in str(line) for line in process.stdout)
+        ret = any('unhealthy' in line or 'unreachable' in line for line in map(str, process.stdout))
         process.wait()
         return ret
 
@@ -478,7 +502,8 @@ class HouseKeeper(Thread):
         while True:
             try:
                 if self.manager.etcd_pid != 0 and self.is_leader():
-                    if (update_required or self.members_changed() or self.cluster_unhealthy()) and self.acquire_lock():
+                    if (update_required or self.members_changed() or self.cluster_unhealthy()) \
+                            and not self.check_upgrade_lock() and self.acquire_lock():
                         update_required = True
                         autoscaling_members = self.manager.get_autoscaling_members()
                         if autoscaling_members:
@@ -488,6 +513,20 @@ class HouseKeeper(Thread):
                 else:
                     self.members = {}
                     update_required = False
+                    if self.manager.etcd_pid != 0 and self.manager.runv2 \
+                            and not self.cluster_unhealthy() and self.take_upgrade_lock(600):
+                        logging.info('Performing upgrade of member %s', self.manager.me.name)
+                        os.kill(self.manager.etcd_pid, signal.SIGTERM)
+                        for _ in range(0, 59):
+                            time.sleep(10)
+                            if self.cluster_unhealthy():
+                                logging.info('upgrade: cluster is unhealthy...')
+                            else:
+                                logging.info('upgrade complete, removing upgrade lock')
+                                self.release_upgrade_lock()
+                                break
+                        else:
+                            logging.error('upgrade: giving up...')
             except:
                 logging.exception('Exception in HouseKeeper main loop')
             logging.debug('Sleeping %s seconds...', self.NAPTIME)
