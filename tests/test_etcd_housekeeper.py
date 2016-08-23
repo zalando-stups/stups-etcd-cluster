@@ -72,6 +72,8 @@ class TestHouseKeeper(unittest.TestCase):
     def test_cluster_unhealthy(self):
         self.assertTrue(self.keeper.cluster_unhealthy())
 
+    @patch('logging.exception', Mock(side_effect=Exception))
+    @patch('os.kill', Mock())
     @patch('time.sleep', Mock(side_effect=Exception))
     @patch('requests.get', requests_get)
     @patch('requests.put', requests_put)
@@ -87,3 +89,10 @@ class TestHouseKeeper(unittest.TestCase):
         self.assertRaises(Exception, self.keeper.run)
         self.keeper.is_leader = Mock(side_effect=Exception)
         self.assertRaises(Exception, self.keeper.run)
+        with patch('time.sleep', Mock()):
+            self.keeper.is_leader = Mock(return_value=False)
+            self.keeper.manager.runv2 = True
+            self.keeper.cluster_unhealthy = Mock(side_effect=[False, True, False])
+            self.assertRaises(Exception, self.keeper.run)
+            self.keeper.cluster_unhealthy = Mock(side_effect=[False] + [True]*100)
+            self.assertRaises(Exception, self.keeper.run)

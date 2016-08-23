@@ -20,6 +20,10 @@ def requests_get(url, **kwargs):
     response = MockResponse()
     if url == 'http://127.0.0.7:2379/v2/members':
         response.content = '{"members":[]}'
+    elif url == 'http://127.0.0.1:2379/version':
+        response.content = '{"etcdserver":"2.3.7","etcdcluster":"2.3.0"}'
+    elif url == 'http://127.0.0.3:2379/v2/keys/_upgrade_lock':
+        response.status_code = 404
     else:
         response.content = \
             """{"region":"eu-west-1", "instanceId": "i-deadbeef3", "leaderInfo":{"leader":"ifoobari1"},"members":[

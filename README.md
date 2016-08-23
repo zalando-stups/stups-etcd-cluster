@@ -29,7 +29,7 @@ For example, if you made are making an etcd cluster to be used by a service call
 
     senza create https://raw.github.com/zalando/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
-                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:2.3.6-p10
+                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.6-p12
 
 ## Step 2: Confirm successful cluster creation
 Running this `senza create` command should have created:
@@ -42,6 +42,20 @@ Running this `senza create` command should have created:
     - an A record of the form `releaseetcd.elephant.example.org.`
     - a SRV record of the form `_etcd-server._tcp.releaseetcd.elephant.example.org.` with port = 2380, i.e. peer port
     - a SRV record of the form `_etcd._tcp.releaseetcd.elephant.example.org.` with port = 2379, i.e. client port
+
+Upgrade
+=======
+In order to perform minor or major upgrade without downtime you need to terminate all EC2 instances one-by-one. Between every termination you need to wait at least 5 minutes and monitor cluster-health, logs and DNS records. You should not terminate the next instance until cluster didn't became health again.
+
+To upgrade an existing etcd deployment to 3.0, you must be running 2.3. If you are running a version of etcd before 2.3, you must upgrade to 2.3 (preferably 2.3.7) before upgrading to 3.0.
+
+Major upgrade is possible one version at a time, i.e. it is possible to upgrade from 2.0 to 2.1 and from 2.1 to 2.2, but it is not possible to upgrade from 2.0 to 2.2.
+
+Before 3.0 it was possible simply "join" the new member with higher major version with the empty data directory to the cluster and it was working fine. Somehow such approach stopped working for 2.3 -> 3.0 upgrade. So now we are using another technique: if the cluster_version is still 2.3, we are "joining" etcd 2.3.7 member to the cluster, in order to download latest data. When the cluster became healthy again, we are taking an "upgrade_lock", stopping etcd 2.3.7 and starting up etcd 3.0. When the cluster became healthy again we are removing "upgrade_lock" and let other members to be upgraded.
+
+Upgrade lock is needed to:
+- Temporary switch off "house-keeping" job, which task is removing "unhealthy" members and updating DNS records.
+- Make sure that we are upgrading one cluster member at a time.
 
 Demo
 ====
