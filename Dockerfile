@@ -23,7 +23,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 ENV ETCDVERSION 2.3.7
 RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz | tar xz -C /bin --xform='s/$/v2/x' --strip=1 --wildcards --no-anchored etcd
 
-ENV ETCDVERSION 3.0.10
+ENV ETCDVERSION 3.0.12
 RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl
 
 COPY etcd.py /bin/etcd.py
