@@ -85,7 +85,10 @@ Resources:
           Version: "2012-10-17"
           Statement:
           - Effect: Allow
-            Action: ec2:Describe*
+            Action:
+              - ec2:Describe*
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupIngress
             Resource: "*"
           - Effect: Allow
             Action: autoscaling:Describe*

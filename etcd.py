@@ -171,6 +171,27 @@ class EtcdMember:
 
     def add_member(self, member):
         logging.debug('Adding new member %s:%s to cluster', member.instance_id, member.peer_url)
+        if EtcdCluster.is_multiregion():
+            for region in EtcdCluster.REGIONS:
+                ec2 = boto3.resource('ec2', region)
+                # stack resource from cloudformation returns the GroupName instat of the GroupID...
+                # cloudformation = boto3.resource('cloudformation', region)
+                # stack_resource = cloudformation.StackResource(me.cloudformation_stack,
+                #                                               'EtcdSecurityGroup')
+                # security_group = ec2.SecurityGroup(stack_resource.physical_resource_id)
+                # .filter(...) works only with default VPC!
+                for sg in ec2.security_groups.all():
+                    if (sg.tags and tags_to_dict(sg.tags).get(EtcdMember.CF_TAG, '') == self.cloudformation_stack):
+                        try:
+                            sg.authorize_ingress(
+                                IpProtocol='tcp',
+                                FromPort=0,
+                                ToPort=65535,
+                                CidrIp='{}/32'.format(member.addr),
+                            )
+                        except:
+                            logging.exception("Exception on authorize_ingress/add_member for %s", member.addr)
+
         response = self.api_post('members', {'peerURLs': [member.peer_url]})
         if response:
             member.set_info_from_etcd(response)
@@ -179,6 +200,27 @@ class EtcdMember:
 
     def delete_member(self, member):
         logging.debug('Removing member %s from cluster', member.id)
+        if EtcdCluster.is_multiregion():
+            for region in EtcdCluster.REGIONS:
+                ec2 = boto3.resource('ec2', region)
+                # stack resource from cloudformation returns the GroupName instat of the GroupID...
+                # cloudformation = boto3.resource('cloudformation', region)
+                # stack_resource = cloudformation.StackResource(me.cloudformation_stack,
+                #                                               'EtcdSecurityGroup')
+                # security_group = ec2.SecurityGroup(stack_resource.physical_resource_id)
+                # .filter(...) works only with default VPC!
+                for sg in ec2.security_groups.all():
+                    if (sg.tags and tags_to_dict(sg.tags).get(EtcdMember.CF_TAG, '') == self.cloudformation_stack):
+                        try:
+                            sg.revoke_ingress(
+                                IpProtocol='tcp',
+                                FromPort=0,
+                                ToPort=65535,
+                                CidrIp='{}/32'.format(member.addr),
+                            )
+                        except:
+                            logging.exception("Exception on revoke_ingress/delete_member for %s", member.addr)
+
         return self.api_delete('members/' + member.id)
 
     def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
@@ -325,15 +367,39 @@ class EtcdManager:
 
     def get_autoscaling_members(self):
         me = self.get_my_instance()
-        # TODO: ADD Multi Region Support
         members = []
         for region in EtcdCluster.REGIONS:
             conn = boto3.resource('ec2', region_name=region)
-            instances = conn.instances.filter(
-                Filters=[{'Name': 'tag:{}'.format(EtcdMember.CF_TAG), 'Values': [me.cloudformation_stack]}])
-            members.extend([i for i in instances if i.state != 'terminated' and
-                            tags_to_dict(i.tags).get(EtcdMember.CF_TAG, '') == me.cloudformation_stack])
-        return list(map(EtcdMember, members))
+            for i in conn.instances.filter(Filters=[
+                    {'Name': 'tag:{}'.format(EtcdMember.CF_TAG),
+                     'Values': [me.cloudformation_stack]}]):
+                if (i.state['Name'] == 'running' and
+                        tags_to_dict(i.tags).get(EtcdMember.CF_TAG, '') == me.cloudformation_stack):
+                    m = EtcdMember(i)
+                    members.append(m)
+
+        if EtcdCluster.is_multiregion():
+            for region in EtcdCluster.REGIONS:
+                ec2 = boto3.resource('ec2', region)
+                # stack resource from cloudformation returns the GroupName instat of the GroupID...
+                # cloudformation = boto3.resource('cloudformation', region)
+                # stack_resource = cloudformation.StackResource(me.cloudformation_stack,
+                #                                               'EtcdSecurityGroup')
+                # security_group = ec2.SecurityGroup(stack_resource.physical_resource_id)
+                # .filter(...) works only with default VPC!
+                for sg in ec2.security_groups.all():
+                    if (sg.tags and tags_to_dict(sg.tags).get(EtcdMember.CF_TAG, '') == me.cloudformation_stack):
+                        for m in members:
+                            try:
+                                sg.authorize_ingress(
+                                    IpProtocol='tcp',
+                                    FromPort=0,
+                                    ToPort=65535,
+                                    CidrIp='{}/32'.format(m.addr),
+                                )
+                            except:
+                                logging.exception('Can get Resource for %s', me.cloudformation_stack)
+        return members
 
     def clean_data_dir(self):
         path = self.DATA_DIR
