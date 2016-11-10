@@ -37,8 +37,6 @@ class EtcdMember:
     DEFAULT_CLIENT_PORT = 2379
     DEFAULT_PEER_PORT = 2380
     AG_TAG = 'aws:autoscaling:groupName'
-    # TODO: ADD Multi Region Support
-    # aws:cloudformation:stack-name : multiregion-etcd-cluster-mkerk (not autoscaling group name)
     CF_TAG = 'aws:cloudformation:stack-name'
 
     def __init__(self, arg):
