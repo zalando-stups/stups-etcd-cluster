@@ -183,7 +183,7 @@ class EtcdMember:
                         try:
                             sg.authorize_ingress(
                                 IpProtocol='tcp',
-                                FromPort=2380,
+                                FromPort=2379,
                                 ToPort=2380,
                                 CidrIp='{}/32'.format(member.addr),
                             )
@@ -213,7 +213,7 @@ class EtcdMember:
                         try:
                             sg.revoke_ingress(
                                 IpProtocol='tcp',
-                                FromPort=2380,
+                                FromPort=2379,
                                 ToPort=2380,
                                 CidrIp='{}/32'.format(member.addr),
                             )
@@ -393,7 +393,7 @@ class EtcdManager:
                             try:
                                 sg.authorize_ingress(
                                     IpProtocol='tcp',
-                                    FromPort=2380,
+                                    FromPort=2379,
                                     ToPort=2380,
                                     CidrIp='{}/32'.format(m.addr),
                                 )
