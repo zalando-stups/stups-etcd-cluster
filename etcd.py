@@ -183,8 +183,8 @@ class EtcdMember:
                         try:
                             sg.authorize_ingress(
                                 IpProtocol='tcp',
-                                FromPort=0,
-                                ToPort=65535,
+                                FromPort=2380,
+                                ToPort=2380,
                                 CidrIp='{}/32'.format(member.addr),
                             )
                         except:
@@ -198,6 +198,7 @@ class EtcdMember:
 
     def delete_member(self, member):
         logging.debug('Removing member %s from cluster', member.id)
+        result = self.api_delete('members/' + member.id)
         if EtcdCluster.is_multiregion():
             for region in EtcdCluster.REGIONS:
                 ec2 = boto3.resource('ec2', region)
@@ -212,14 +213,14 @@ class EtcdMember:
                         try:
                             sg.revoke_ingress(
                                 IpProtocol='tcp',
-                                FromPort=0,
-                                ToPort=65535,
+                                FromPort=2380,
+                                ToPort=2380,
                                 CidrIp='{}/32'.format(member.addr),
                             )
                         except:
                             logging.exception("Exception on revoke_ingress/delete_member for %s", member.addr)
 
-        return self.api_delete('members/' + member.id)
+        return result
 
     def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
         return [
@@ -392,8 +393,8 @@ class EtcdManager:
                             try:
                                 sg.authorize_ingress(
                                     IpProtocol='tcp',
-                                    FromPort=0,
-                                    ToPort=65535,
+                                    FromPort=2380,
+                                    ToPort=2380,
                                     CidrIp='{}/32'.format(m.addr),
                                 )
                             except:
