@@ -83,7 +83,7 @@ class MockReservation:
 
 class MockInstance:
 
-    state = 'running'
+    state = {'Code': 16, 'Name': 'running'}
 
     def __init__(self, id, ip, region='eu-west-1', public_ip=None):
         self.id = id
