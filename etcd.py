@@ -260,6 +260,7 @@ class EtcdCluster:
     def is_v3(self):
         return self.cluster_version is not None and self.cluster_version.startswith('3.')
 
+    @staticmethod
     def is_multiregion():
         return len(EtcdCluster.REGIONS) > 1
 
