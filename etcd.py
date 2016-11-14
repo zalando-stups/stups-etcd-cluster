@@ -527,18 +527,17 @@ class HouseKeeper(Thread):
         stack_version = self.manager.me.cloudformation_stack.split('-')[-1]
         members = {m.dns: m for m in map(EtcdMember, self.members.values())}
 
-        record_name = '_etcd-server-ssl._tcp.{}.{}'.format(stack_version, self.hosted_zone)
+        record_name = '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone)
         new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.dns].peer_port, i.dns]))}
                       for i in autoscaling_members if i.dns in members]
         self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        record_name = '_etcd-client-ssl._tcp.{}.{}'.format(stack_version, self.hosted_zone)
+        record_name = '_etcd-client._tcp.{}.{}'.format(stack_version, self.hosted_zone)
         new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.dns].client_port, i.dns]))}
                       for i in autoscaling_members if i.dns in members]
         self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        new_record = [{'Value': i.addr}
-                      for i in autoscaling_members if i.dns in members]
+        new_record = [{'Value': i.addr} for i in autoscaling_members if i.dns in members]
         self.update_record(conn, zone_id, 'A', 'etcd-server.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
     def run(self):
