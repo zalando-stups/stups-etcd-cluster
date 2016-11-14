@@ -27,7 +27,7 @@ class TestEtcdMultiRegionCluster(unittest.TestCase):
             self.cluster.load_members()
 
     def test_is_healthy(self):
-        url = 'https://ec2-52-0-0-128.eu-west-1.compute.amazonaws.com'
+        url = 'http://ec2-52-0-0-128.eu-west-1.compute.amazonaws.com'
         peer_urls = ['{}:{}'.format(url, EtcdMember.DEFAULT_PEER_PORT)]
         me = EtcdMember({
             'id': 'ifoobari0815',

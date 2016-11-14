@@ -9,8 +9,8 @@ from test_etcd_manager import requests_delete, requests_get, MockInstance, MockR
 def requests_post(url, **kwargs):
     response = MockResponse()
     data = json.loads(kwargs['data'])
-    if data['peerURLs'][0] in ['https://ip-127-0-0-2.eu-west-1.compute.internal:2380',
-                               'https://ip-127-0-0-3.eu-west-1.compute.internal:2380']:
+    if data['peerURLs'][0] in ['http://ip-127-0-0-2.eu-west-1.compute.internal:2380',
+                               'http://ip-127-0-0-3.eu-west-1.compute.internal:2380']:
         response.status_code = 201
         response.content = '{"id":"ifoobar","name":"","peerURLs":["' + data['peerURLs'][0] + '"],"clientURLs":[""]}'
     else:
@@ -27,7 +27,7 @@ class TestEtcdMember(unittest.TestCase):
             'id': 'deadbeef',
             'name': 'i-foobar2',
             'clientURLs': [],
-            'peerURLs': ['https://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
+            'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
         }
         self.etcd_member = EtcdMember(self.etcd)
 
@@ -54,7 +54,7 @@ class TestEtcdMember(unittest.TestCase):
             'id': '',
             'name': '',
             'clientURLs': [],
-            'peerURLs': ['https://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
+            'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
         })
         self.assertTrue(self.ec2_member.add_member(member))
         member.dns = 'ip-127-0-0-4.eu-west-1.compute.internal'
@@ -77,8 +77,8 @@ class TestEtcdMember(unittest.TestCase):
         member = EtcdMember({
             'id': 'ifoobari7',
             'name': 'i-sadfjhg',
-            'clientURLs': ['https://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
-            'peerURLs': ['https://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
+            'clientURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
+            'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
         })
         member.addr = '127.0.0.1'
         self.assertFalse(self.ec2_member.delete_member(member))

@@ -27,7 +27,7 @@ class TestEtcdCluster(unittest.TestCase):
             self.cluster.load_members()
 
     def test_is_healthy(self):
-        url = 'https://ip-127-0-0-22.eu-west-1.compute.internal'
+        url = 'http://ip-127-0-0-22.eu-west-1.compute.internal'
         peer_urls = ['{}:{}'.format(url, EtcdMember.DEFAULT_PEER_PORT)]
         me = EtcdMember({
             'id': 'ifoobari7',

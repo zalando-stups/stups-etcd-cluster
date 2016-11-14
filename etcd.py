@@ -105,7 +105,7 @@ class EtcdMember:
 
     @staticmethod
     def generate_url(addr, port):
-        return 'https://{}:{}'.format(addr, port)
+        return 'http://{}:{}'.format(addr, port)
 
     def get_client_url(self, endpoint=''):
         url = self.generate_url(self.dns, self.client_port)
@@ -123,13 +123,13 @@ class EtcdMember:
 
     def api_get(self, endpoint):
         url = self.get_client_url(endpoint)
-        response = requests.get(url, timeout=self.API_TIMEOUT, verify=False)
+        response = requests.get(url, timeout=self.API_TIMEOUT)
         logging.debug('Got response from GET %s: code=%s content=%s', url, response.status_code, response.content)
         return (response.json() if response.status_code == 200 else None)
 
     def api_put(self, endpoint, data):
         url = self.get_client_url(endpoint)
-        response = requests.put(url, data=data, verify=False)
+        response = requests.put(url, data=data)
         logging.debug('Got response from PUT %s %s: code=%s content=%s', url, data, response.status_code,
                       response.content)
         return (response.json() if response.status_code == 201 else None)
@@ -138,19 +138,19 @@ class EtcdMember:
         url = self.get_client_url(endpoint)
         headers = {'Content-type': 'application/json'}
         data = json.dumps(data)
-        response = requests.post(url, data=data, headers=headers, verify=False)
+        response = requests.post(url, data=data, headers=headers)
         logging.debug('Got response from POST %s %s: code=%s content=%s', url, data, response.status_code,
                       response.content)
         return (response.json() if response.status_code == 201 else None)
 
     def api_delete(self, endpoint, data=None):
         url = self.get_client_url(endpoint)
-        response = requests.delete(url, data=data, verify=False)
+        response = requests.delete(url, data=data)
         logging.debug('Got response from DELETE %s: code=%s content=%s', url, response.status_code, response.content)
         return response.status_code == 204
 
     def get_cluster_version(self):
-        response = requests.get(self.get_client_url() + '/version', verify=False)
+        response = requests.get(self.get_client_url() + '/version')
         return response.json()['etcdcluster'] if response.status_code == 200 else None
 
     def is_leader(self):
@@ -208,11 +208,11 @@ class EtcdMember:
             '--data-dir',
             data_dir,
             '-listen-peer-urls',
-            'https://0.0.0.0:{}'.format(self.peer_port),
+            'http://0.0.0.0:{}'.format(self.peer_port),
             '-initial-advertise-peer-urls',
             self.peer_url,
             '-listen-client-urls',
-            'https://0.0.0.0:{}'.format(self.client_port),
+            'http://0.0.0.0:{}'.format(self.client_port),
             '-advertise-client-urls',
             self.get_client_url(),
             '-initial-cluster',
@@ -220,9 +220,7 @@ class EtcdMember:
             '-initial-cluster-token',
             self.cloudformation_stack,
             '-initial-cluster-state',
-            cluster_state,
-            '--auto-tls',
-            '--peer-auto-tls'
+            cluster_state
         ]
 
 
