@@ -27,18 +27,20 @@ class TestEtcdCluster(unittest.TestCase):
             self.cluster.load_members()
 
     def test_is_healthy(self):
+        url = 'https://ip-127-0-0-22.eu-west-1.compute.internal'
+        peer_urls = ['{}:{}'.format(url, EtcdMember.DEFAULT_PEER_PORT)]
         me = EtcdMember({
             'id': 'ifoobari7',
             'name': 'i-sadfjhg',
-            'clientURLs': ['http://127.0.0.22:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
-            'peerURLs': ['http://127.0.0.22:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
+            'clientURLs': ['{}:{}'.format(url, EtcdMember.DEFAULT_CLIENT_PORT)],
+            'peerURLs': peer_urls
         })
         self.assertFalse(self.cluster.is_healthy(me))
         self.cluster.members[-1].instance_id = 'foo'
         self.cluster.members[-1].name = ''
         self.assertFalse(self.cluster.is_healthy(me))
 
-        self.cluster.members[-1].peer_urls = ['http://127.0.0.22:2380']
+        self.cluster.members[-1].peer_urls = peer_urls
         self.assertTrue(self.cluster.is_healthy(me))
         self.cluster.members.pop()
         self.assertTrue(self.cluster.is_healthy(me))

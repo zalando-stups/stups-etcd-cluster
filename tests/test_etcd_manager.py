@@ -18,40 +18,44 @@ class MockResponse:
 
 def requests_get(url, **kwargs):
     response = MockResponse()
-    if url == 'http://127.0.0.7:2379/v2/members':
+    if url == 'https://ip-127-0-0-7.eu-west-1.compute.internal:2379/v2/members':
         response.content = '{"members":[]}'
-    elif url == 'http://127.0.0.1:2379/version':
+    elif url == 'https://ip-127-0-0-1.eu-west-1.compute.internal:2379/version':
         response.content = '{"etcdserver":"2.3.7","etcdcluster":"2.3.0"}'
-    elif url == 'http://127.0.0.3:2379/v2/keys/_upgrade_lock':
+    elif url == 'https://ip-127-0-0-3.eu-west-1.compute.internal:2379/v2/keys/_upgrade_lock':
         response.status_code = 404
     else:
         response.content = \
             """{"region":"eu-west-1", "instanceId": "i-deadbeef3", "leaderInfo":{"leader":"ifoobari1"},"members":[
-{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["http://127.0.0.1:2380"],"clientURLs":["http://127.0.0.1:2379"]},
-{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["http://127.0.0.2:2380"],"clientURLs":["http://127.0.0.2:2379"]},
-{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["http://127.0.0.3:2380"],"clientURLs":["http://127.0.0.3:2379"]},
-{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["http://127.0.0.4:2380"],"clientURLs":[]}]}"""
+{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["https://ip-127-0-0-1.eu-west-1.compute.internal:2380"],
+"clientURLs":["https://ip-127-0-0-1.eu-west-1.compute.internal:2379"]},
+{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["https://ip-127-0-0-2.eu-west-1.compute.internal:2380"],
+"clientURLs":["https://ip-127-0-0-2.eu-west-1.compute.internal:2379"]},
+{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["https://ip-127-0-0-3.eu-west-1.compute.internal:2380"],
+"clientURLs":["https://ip-127-0-0-3.eu-west-1.compute.internal:2379"]},
+{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["https://ip-127-0-0-4.eu-west-1.compute.internal:2380"],
+"clientURLs":[]}]}"""
     return response
 
 
 def requests_get_multiregion(url, **kwargs):
     response = MockResponse()
-    if url == 'http://52.0.0.128:2379/v2/members':
+    if url == 'https://ec2-52-0-0-128.eu-west-1.compute.amazonaws.com:2379/v2/members':
         response.content = '{"members":[]}'
-    elif url == 'http://52.0.0.41:2379/version':
+    elif url == 'https://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2379/version':
         response.content = '{"etcdserver":"2.3.7","etcdcluster":"2.3.0"}'
-    elif url == 'http://52.0.0.43:2379/v2/keys/_upgrade_lock':
+    elif url == 'https://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2379/v2/keys/_upgrade_lock':
         response.status_code = 404
     else:
         response.content = \
             """{"region":"eu-west-1", "instanceId": "i-deadbeef3", "leaderInfo":{"leader":"ifoobari1"},"members":[
-{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["http://52.0.0.41:2380"],"clientURLs":["http://52.0.0.41:2379"]},
-{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["http://52.0.0.42:2380"],"clientURLs":["http://52.0.0.42:2379"]},
-{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["http://52.0.0.43:2380"],"clientURLs":["http://52.0.0.43:2379"]},
-{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["http://52.0.0.44:2380"],"clientURLs":[]},
-{"id":"ifoobari5","name":"i-beefcent1","peerURLs":["http://54.200.0.41:2380"],"clientURLs":["http://54.200.0.41:2379"]},
-{"id":"ifoobari6","name":"i-beefcent2","peerURLs":["http://54.200.0.42:2380"],"clientURLs":["http://54.200.0.42:2379"]},
-{"id":"ifoobari7","name":"i-beefcent3","peerURLs":["http://54.200.0.43:2380"],"clientURLs":["http://54.200.0.43:2379"]}
+{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["https://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["https://ec2-52-0-0-42.eu-west-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-52-0-0-42.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["https://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["https://ec2-52-0-0-44.eu-west-1.compute.amazonaws.com:2380"],"clientURLs":[]},
+{"id":"ifoobari5","name":"i-beefcent1","peerURLs":["https://ec2-54-200-0-41.eu-central-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-54-200-0-41.eu-central-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari6","name":"i-beefcent2","peerURLs":["https://ec2-54-200-0-42.eu-central-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-54-200-0-42.eu-central-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari7","name":"i-beefcent3","peerURLs":["https://ec2-54-200-0-43.eu-central-1.compute.amazonaws.com:2380"],"clientURLs":["https://ec2-54-200-0-43.eu-central-1.compute.amazonaws.com:2379"]}
 ]}"""
     return response
 
