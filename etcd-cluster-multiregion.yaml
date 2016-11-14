@@ -43,7 +43,7 @@ SenzaInfo:
   - InstanceCount:
       Description: Instance number in ASG
       Default: 5
-  StackName: multiregion-etcd-cluster
+  StackName: etcd-cluster
 Resources:
   EtcdSecurityGroup:
     Type: AWS::EC2::SecurityGroup
