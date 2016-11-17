@@ -43,8 +43,32 @@ Running this `senza create` command should have created:
     - a SRV record of the form `_etcd-server._tcp.releaseetcd.elephant.example.org.` with port = 2380, i.e. peer port
     - a SRV record of the form `_etcd._tcp.releaseetcd.elephant.example.org.` with port = 2379, i.e. client port
 
+
+Multiregion cluster
+===================
+It is possible to deploy etcd-cluster across multiple regions. To do that you have to deploy cloud formation stack into multiple regions with the same stack names. It will make possible to discover instances from other region and grant access to those instances via SecurityGroups. Deployment has to be done region by region, otherwise there is a chance of race condition during cluster bootstrap. 
+
+    senza --region eu-central-1 create \
+        https://raw.githubusercontent.com/zalando/stups-etcd-cluster/multiregion-cluster/etcd-cluster-multiregion.yaml \
+            multietcd HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p6 \
+            ActiveRegions=eu-west-1,eu-central-1 \
+            InstanceCount=4
+
+    senza --region eu-central-1 wait etcd-cluster multietcd
+
+    senza --region eu-west-1 create \
+        https://raw.githubusercontent.com/zalando/stups-etcd-cluster/multiregion-cluster/etcd-cluster-multiregion.yaml \
+            multietcd HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p6 \
+            ActiveRegions=eu-west-1,eu-central-1 \
+            InstanceCount=1
+
+**Upgrade from the etcd-cluster to the multiregion-etcd-cluster is NOT POSSIBLE!**
+
 Upgrade
 =======
+
 In order to perform a minor or major upgrade without downtime you need to terminate all EC2 instances one-by-one. Between every termination you need to wait at least 5 minutes and monitor cluster-health, logs and DNS records. You should only terminate the next instance if the cluster is healthy again.
 
 To upgrade an existing etcd deployment to 3.0, you must be running 2.3. If you are running a version of etcd before 2.3, you must upgrade to 2.3 (preferably 2.3.7) before upgrading to 3.0.
@@ -56,6 +80,8 @@ Before 3.0 it was possible simply "join" the new member with a higher major vers
 The upgrade lock is needed to:
 - Temporary switch off "house-keeping" job, which task is removing "unhealthy" members and updating DNS records.
 - Make sure that we are upgrading one cluster member at a time.
+
+**Upgrade from the etcd-cluster to the multiregion-etcd-cluster is NOT POSSIBLE!**
 
 Demo
 ====
