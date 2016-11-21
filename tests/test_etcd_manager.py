@@ -99,9 +99,9 @@ class MockInstance:
         self.id = id
         self.private_ip_address = ip
         self.private_dns_name = 'ip-{}.{}.compute.internal'.format(ip.replace('.', '-'), region)
-        if public_ip:
-            self.public_ip_address = public_ip
-            self.public_dns_name = 'ec2-{}.{}.compute.amazonaws.com'.format(public_ip.replace('.', '-'), region)
+        self.public_ip_address = public_ip
+        self.public_dns_name = public_ip and \
+            'ec2-{}.{}.compute.amazonaws.com'.format(public_ip.replace('.', '-'), region)
         self.tags = [
             {'Key': 'aws:cloudformation:stack-name', 'Value': 'etc-cluster'},
             {'Key': 'aws:autoscaling:groupName', 'Value': 'etc-cluster-postgres'}

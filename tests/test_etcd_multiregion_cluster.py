@@ -27,7 +27,8 @@ class TestEtcdMultiRegionCluster(unittest.TestCase):
             self.cluster.load_members()
 
     def test_is_healthy(self):
-        url = 'http://ec2-52-0-0-128.eu-west-1.compute.amazonaws.com'
+        public_dns_name = 'ec2-52-0-0-128.eu-west-1.compute.amazonaws.com'
+        url = 'http://' + public_dns_name
         peer_urls = ['{}:{}'.format(url, EtcdMember.DEFAULT_PEER_PORT)]
         me = EtcdMember({
             'id': 'ifoobari0815',
@@ -35,6 +36,7 @@ class TestEtcdMultiRegionCluster(unittest.TestCase):
             'clientURLs': ['{}:{}'.format(url, EtcdMember.DEFAULT_CLIENT_PORT)],
             'peerURLs': peer_urls
         })
+        me.public_dns_name = public_dns_name
         self.assertFalse(self.cluster.is_healthy(me))
         self.cluster.members[-1].instance_id = 'foo'
         self.cluster.members[-1].name = ''

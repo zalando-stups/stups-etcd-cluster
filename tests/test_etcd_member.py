@@ -37,7 +37,6 @@ class TestEtcdMember(unittest.TestCase):
         self.assertIsNone(self.ec2_member.get_addr_from_urls(['http//1.2']))
 
     def test_set_info_from_ec2_instance(self):
-        self.assertEqual(self.etcd_member.dns, 'ip-127-0-0-2.eu-west-1.compute.internal')
         self.etcd_member.set_info_from_ec2_instance(self.ec2)
         self.etcd_member.name = ''
         self.etcd_member.set_info_from_ec2_instance(self.ec2)
@@ -46,7 +45,12 @@ class TestEtcdMember(unittest.TestCase):
         self.ec2_member.set_info_from_etcd(self.etcd)
         self.etcd['name'] = 'i-foobar'
         self.ec2_member.set_info_from_etcd(self.etcd)
-        self.etcd['name'] = 'i-foobar2'
+        self.etcd['peerURLs'] = ['http://127.0.0.100:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
+        self.ec2_member.set_info_from_etcd(self.etcd)
+        self.etcd['peerURLs'] = ['http://127.0.0.1:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
+        self.ec2_member.set_info_from_etcd(self.etcd)
+        self.etcd['peerURLs'] = []
+        self.ec2_member.set_info_from_etcd(self.etcd)
 
     @patch('requests.post', requests_post)
     def test_add_member(self):
@@ -57,7 +61,7 @@ class TestEtcdMember(unittest.TestCase):
             'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)],
         })
         self.assertTrue(self.ec2_member.add_member(member))
-        member.dns = 'ip-127-0-0-4.eu-west-1.compute.internal'
+        member.peer_urls[0] = member.peer_urls[0].replace('2', '4')
         self.assertFalse(self.ec2_member.add_member(member))
 
     @patch('requests.get', requests_get)
@@ -66,6 +70,7 @@ class TestEtcdMember(unittest.TestCase):
 
     @patch('boto3.resource')
     @patch('requests.delete', requests_delete)
+    @patch('etcd.EtcdCluster.is_multiregion', Mock(return_value=True))
     def test_delete_member(self, res):
         sg = Mock()
         sg.tags = [
@@ -80,15 +85,15 @@ class TestEtcdMember(unittest.TestCase):
             'clientURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
             'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
         })
-        member.addr = '127.0.0.1'
+        member.peer_urls[0] = member.peer_urls[0].replace('2', '1')
         self.assertFalse(self.ec2_member.delete_member(member))
 
     @patch('requests.get', requests_get)
     def test_get_leader(self):
-        self.ec2_member.dns = 'ip-127-0-0-7.eu-west-1.compute.internal'
+        self.ec2_member.private_dns_name = 'ip-127-0-0-7.eu-west-1.compute.internal'
         self.assertEqual(self.ec2_member.get_leader(), 'ifoobari1')
 
     @patch('requests.get', requests_get)
     def test_get_members(self):
-        self.ec2_member.dns = 'ip-127-0-0-7.eu-west-1.compute.internal'
+        self.ec2_member.private_dns_name = 'ip-127-0-0-7.eu-west-1.compute.internal'
         self.assertEqual(self.ec2_member.get_members(), [])
