@@ -48,23 +48,20 @@ Multiregion cluster
 ===================
 It is possible to deploy etcd-cluster across multiple regions. To do that you have to deploy cloud formation stack into multiple regions with the same stack names. It will make possible to discover instances from other region and grant access to those instances via SecurityGroups. Deployment has to be done region by region, otherwise there is a chance of race condition during cluster bootstrap. 
 
-    senza --region eu-central-1 create \
-        https://raw.githubusercontent.com/zalando/stups-etcd-cluster/multiregion-cluster/etcd-cluster-multiregion.yaml \
-            multietcd HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p6 \
+    senza --region eu-central-1 create etcd-cluster-multiregion.yaml multietcd
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=4
 
     senza --region eu-central-1 wait etcd-cluster multietcd
 
-    senza --region eu-west-1 create \
-        https://raw.githubusercontent.com/zalando/stups-etcd-cluster/multiregion-cluster/etcd-cluster-multiregion.yaml \
-            multietcd HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p6 \
+    senza --region eu-west-1 create etcd-cluster-multiregion.yaml multietcd
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=1
 
-**Upgrade from the etcd-cluster to the multiregion-etcd-cluster is NOT POSSIBLE!**
 
 Upgrade
 =======
@@ -81,7 +78,45 @@ The upgrade lock is needed to:
 - Temporary switch off "house-keeping" job, which task is removing "unhealthy" members and updating DNS records.
 - Make sure that we are upgrading one cluster member at a time.
 
-**Upgrade from the etcd-cluster to the multiregion-etcd-cluster is NOT POSSIBLE!**
+Migration of an existing cluster to multiregion setup
+=====================================================
+Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) active region. To do that you need to run:
+
+    senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            ActiveRegions=eu-central-1 \
+            InstanceCount=5
+
+And do instance rotation like during Upgrade procedure.
+
+Step 2: Enable the second region.
+
+    senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            ActiveRegions=eu-central-1,eu-west-1 \
+            InstanceCount=5
+
+And rotate all instances once again. Although the second region is not there yet, cluster will think that it is working in multiregion mode.
+
+Step 3: Change instance count in eu-central-1 to 4:
+
+    senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            ActiveRegions=eu-central-1,eu-west-1 \
+            InstanceCount=4
+            
+Autoscaling will kill one of the instances automatially.
+
+Step 4: Depoly cloudformation in another region:
+
+    senza --region eu-west-1 create etcd-cluster-multiregion.yaml existingcluster
+            HostedZone=elephant.example.org \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            ActiveRegions=eu-west-1,eu-central-1 \
+            InstanceCount=1
 
 Demo
 ====
