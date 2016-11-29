@@ -82,7 +82,7 @@ class TestEtcdMember(unittest.TestCase):
         member = EtcdMember({
             'id': 'ifoobari7',
             'name': 'i-sadfjhg',
-            'clientURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
+            'clientURLs': ['http://127.0.0.2:{}'.format(EtcdMember.DEFAULT_CLIENT_PORT)],
             'peerURLs': ['http://ip-127-0-0-2.eu-west-1.compute.internal:{}'.format(EtcdMember.DEFAULT_PEER_PORT)]
         })
         member.peer_urls[0] = member.peer_urls[0].replace('2', '1')
@@ -90,10 +90,10 @@ class TestEtcdMember(unittest.TestCase):
 
     @patch('requests.get', requests_get)
     def test_get_leader(self):
-        self.ec2_member.private_dns_name = 'ip-127-0-0-7.eu-west-1.compute.internal'
+        self.ec2_member.private_ip_address = '127.0.0.7'
         self.assertEqual(self.ec2_member.get_leader(), 'ifoobari1')
 
     @patch('requests.get', requests_get)
     def test_get_members(self):
-        self.ec2_member.private_dns_name = 'ip-127-0-0-7.eu-west-1.compute.internal'
+        self.ec2_member.private_ip_address = '127.0.0.7'
         self.assertEqual(self.ec2_member.get_members(), [])

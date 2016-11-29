@@ -133,7 +133,7 @@ class EtcdMember:
         return 'http://{}:{}'.format(addr, port)
 
     def get_client_url(self, endpoint=''):
-        url = self.generate_url(self.dns, self.client_port)
+        url = self.generate_url(self.advertise_addr, self.client_port)
         if endpoint:
             url += self.API_VERSION + endpoint
         return url
