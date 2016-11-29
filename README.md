@@ -84,7 +84,7 @@ Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) activ
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p10 \
             ActiveRegions=eu-central-1 \
             InstanceCount=5
 
@@ -94,7 +94,7 @@ Step 2: Enable the second region.
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p10 \
             ActiveRegions=eu-central-1,eu-west-1 \
             InstanceCount=5
 
@@ -104,7 +104,7 @@ Step 3: Change instance count in eu-central-1 to 4:
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p10 \
             ActiveRegions=eu-central-1,eu-west-1 \
             InstanceCount=4
             
@@ -114,7 +114,7 @@ Step 4: Depoly cloudformation in another region:
 
     senza --region eu-west-1 create etcd-cluster-multiregion.yaml existingcluster
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p9 \
+            DockerImage=registry.opensource.zalan.do/acid/multiregion-etcd-cluster:3.0.15-p10 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=1
 
