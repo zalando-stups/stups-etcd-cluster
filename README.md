@@ -80,7 +80,9 @@ The upgrade lock is needed to:
 
 Migration of an existing cluster to multiregion setup
 =====================================================
-Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) active region. To do that you need to run:
+Currently there are only two AZ in eu-central-1 region, therefore if the one AZ will go down we have chance 50% that our etcd will become read-only. To avoid that we want to run one additional instance in eu-west-1 region.
+
+Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) active region eu-central-1. To do that you need to run:
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
@@ -108,9 +110,9 @@ Step 3: Change instance count in eu-central-1 to 4:
             ActiveRegions=eu-central-1,eu-west-1 \
             InstanceCount=4
             
-Autoscaling will kill one of the instances automatially.
+Autoscaling will kill one of the instances automatically.
 
-Step 4: Depoly cloudformation in another region:
+Step 4: Deploy cloudformation in another region:
 
     senza --region eu-west-1 create etcd-cluster-multiregion.yaml existingcluster
             HostedZone=elephant.example.org \
