@@ -7,6 +7,7 @@ import boto3
 import json
 import logging
 import os
+import re
 import requests
 import shutil
 import signal
@@ -37,14 +38,21 @@ class EtcdMember:
     DEFAULT_CLIENT_PORT = 2379
     DEFAULT_PEER_PORT = 2380
     AG_TAG = 'aws:autoscaling:groupName'
+    CF_TAG = 'aws:cloudformation:stack-name'
 
-    def __init__(self, arg):
+    def __init__(self, arg, region=None):
         self.id = None  # id of cluster member, could be obtained only from running cluster
         self.name = None  # name of cluster member, always match with the AWS instance.id
         self.instance_id = None  # AWS instance.id
-        self.addr = None  # private ip address of the instance or peer_addr
-        self.cluster_token = None  # match with aws:cloudformation:stack-name
+        self.private_ip_address = None
+        self.public_ip_address = None
+        self.private_dns_name = None
+        self.public_dns_name = None
+        self._addr = None  # ip addr (private or public) could be assigned only from etcd
+        self._dns = None  # hostname (private or public) could be assigned only from etcd
         self.autoscaling_group = None  # Name of autoscaling group (aws:autoscaling:groupName)
+        self.cloudformation_stack = None  # Name of cloudformation stack (aws:cloudformation:stack-name)
+        self.region = region
 
         self.client_port = self.DEFAULT_CLIENT_PORT
         self.peer_port = self.DEFAULT_PEER_PORT
@@ -62,15 +70,18 @@ class EtcdMember:
         if self.name and self.name != instance.id:
             return
 
-        # when you add new member it doesn't have name, but we can match it by peer_addr
-        if self.addr and self.addr != instance.private_ip_address:
+        if self._addr and self._addr not in (instance.private_ip_address, instance.public_ip_address) or \
+                self._dns and self._dns not in (instance.private_dns_name, instance.public_dns_name):
             return
 
         self.instance_id = instance.id
-        self.addr = instance.private_ip_address
-        self.dns = instance.private_dns_name
+        self.private_ip_address = instance.private_ip_address
+        self.public_ip_address = instance.public_ip_address
+        self.private_dns_name = instance.private_dns_name
+        self.public_dns_name = instance.public_dns_name
+
         tags = tags_to_dict(instance.tags)
-        self.cluster_token = tags['aws:cloudformation:stack-name']
+        self.cloudformation_stack = tags[self.CF_TAG]
         self.autoscaling_group = tags[self.AG_TAG]
 
     @staticmethod
@@ -78,9 +89,19 @@ class EtcdMember:
         for url in urls:
             url = urlparse(url)
             if url and url.netloc:
-                # TODO: check that hostname contains ip
                 return url.hostname
         return None
+
+    def addr_matches(self, peer_urls):
+        t = '{0}:' + str(self.peer_port)
+        for url in peer_urls:
+            url = urlparse(url)
+            if url and url.netloc and url.netloc in (t.format(self.private_ip_address),
+                                                     t.format(self.public_ip_address),
+                                                     t.format(self.private_dns_name),
+                                                     t.format(self.public_dns_name)):
+                return True
+        return False
 
     def set_info_from_etcd(self, info):
         # by convention member.name == instance.id
@@ -89,32 +110,53 @@ class EtcdMember:
 
         addr = self.get_addr_from_urls(info['peerURLs'])
         # when you add new member it doesn't have name, but we can match it by peer_addr
-        if self.addr and (not addr or self.addr != addr):
+        if not addr:
             return
+        elif re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', addr):
+            if (self.private_ip_address or self.public_ip_address) and \
+                    addr not in (self.private_ip_address, self.public_ip_address):
+                return
+            self._addr = addr
+        else:
+            if (self.private_dns_name or self.public_dns_name) and \
+                    addr not in (self.private_dns_name, self.public_dns_name):
+                return
+            self._dns = addr
 
         self.id = info['id']
         self.name = info['name']
         self.client_urls = info['clientURLs']
         self.peer_urls = info['peerURLs']
-        self.addr = addr
 
     @staticmethod
     def generate_url(addr, port):
         return 'http://{}:{}'.format(addr, port)
 
     def get_client_url(self, endpoint=''):
-        url = self.generate_url(self.addr, self.client_port)
+        url = self.generate_url(self.advertise_addr, self.client_port)
         if endpoint:
             url += self.API_VERSION + endpoint
         return url
 
     @property
+    def addr(self):
+        return EtcdCluster.is_multiregion() and self.public_ip_address or self.private_ip_address
+
+    @property
+    def dns(self):
+        return EtcdCluster.is_multiregion() and self.public_dns_name or self.private_dns_name
+
+    @property
+    def advertise_addr(self):
+        return EtcdCluster.is_multiregion() and self.public_dns_name or self.private_ip_address
+
+    @property
     def peer_addr(self):
-        return '{}:{}'.format(self.addr, self.peer_port)
+        return '{}:{}'.format(self.dns or self._dns or self._addr, self.peer_port)
 
     @property
     def peer_url(self):
-        return self.generate_url(self.addr, self.peer_port)
+        return self.peer_urls and self.peer_urls[0] or self.generate_url(self.advertise_addr, self.peer_port)
 
     def api_get(self, endpoint):
         url = self.get_client_url(endpoint)
@@ -159,6 +201,32 @@ class EtcdMember:
         json = self.api_get('members')
         return (json['members'] if json else [])
 
+    def adjust_security_groups(self, action, *members):
+        if not EtcdCluster.is_multiregion():
+            return
+
+        for region in EtcdCluster.REGIONS:
+            ec2 = boto3.resource('ec2', region)
+            # stack resource from cloudformation returns the GroupName instat of the GroupID...
+            # cloudformation = boto3.resource('cloudformation', region)
+            # stack_resource = cloudformation.StackResource(me.cloudformation_stack,
+            #                                               'EtcdSecurityGroup')
+            # security_group = ec2.SecurityGroup(stack_resource.physical_resource_id)
+            # .filter(...) works only with default VPC!
+            for sg in ec2.security_groups.all():
+                if sg.tags and tags_to_dict(sg.tags).get(self.CF_TAG, '') == self.cloudformation_stack:
+                    for m in members:
+                        if not m.region or m.region != region:
+                            try:
+                                getattr(sg, action)(
+                                    IpProtocol='tcp',
+                                    FromPort=self.client_port,
+                                    ToPort=self.peer_port,
+                                    CidrIp='{}/32'.format(m.addr)
+                                )
+                            except:
+                                logging.exception('Exception on %s for for %s', action, m.addr)
+
     def add_member(self, member):
         logging.debug('Adding new member %s:%s to cluster', member.instance_id, member.peer_url)
         response = self.api_post('members', {'peerURLs': [member.peer_url]})
@@ -169,7 +237,9 @@ class EtcdMember:
 
     def delete_member(self, member):
         logging.debug('Removing member %s from cluster', member.id)
-        return self.api_delete('members/' + member.id)
+        result = self.api_delete('members/' + member.id)
+        self.adjust_security_groups('revoke_ingress', member)
+        return result
 
     def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
         return [
@@ -188,13 +258,14 @@ class EtcdMember:
             '-initial-cluster',
             initial_cluster,
             '-initial-cluster-token',
-            self.cluster_token,
+            self.cloudformation_stack,
             '-initial-cluster-state',
-            cluster_state,
+            cluster_state
         ]
 
 
 class EtcdCluster:
+    REGIONS = []  # more then one (1) Region if this a Multi-Region-Cluster
 
     def __init__(self, manager):
         self.manager = manager
@@ -208,21 +279,21 @@ class EtcdCluster:
         return self.cluster_version is not None and self.cluster_version.startswith('3.')
 
     @staticmethod
+    def is_multiregion():
+        return len(EtcdCluster.REGIONS) > 1
+
+    @staticmethod
     def merge_member_lists(ec2_members, etcd_members):
         # we can match EC2 instance with single etcd member by comparing 'addr:peer_port'
         peers = {m.peer_addr: m for m in ec2_members}
 
         # iterate through list of etcd members obtained from running etcd cluster
         for m in etcd_members:
-            for peer_url in m['peerURLs']:
-                r = urlparse(peer_url)
-                if r.netloc in peers:  # etcd member found among list of EC2 instances
-                    peers[r.netloc].set_info_from_etcd(m)
-                    m = None
+            for peer in peers.values():
+                if peer.addr_matches(m['peerURLs']):
+                    peer.set_info_from_etcd(m)
                     break
-
-            # when etcd member hasn't been found just add it into list
-            if m:
+            else:  # when etcd member hasn't been found just add it into list
                 m = EtcdMember(m)
                 peers[m.peer_addr] = m
         return sorted(peers.values(), key=lambda e: e.instance_id or e.name)
@@ -230,7 +301,7 @@ class EtcdCluster:
     def load_members(self):
         self.accessible_member = None
         self.leader_id = None
-        ec2_members = list(map(EtcdMember, self.manager.get_autoscaling_members()))
+        ec2_members = self.manager.get_autoscaling_members()
         etcd_members = []
 
         # Try to connect to members of autoscaling_group group and fetch information about etcd-cluster
@@ -261,11 +332,8 @@ class EtcdCluster:
                 logging.warning('Will wait until it would be removed from cluster by HouseKeeper job running on leader')
                 return False
             if m.id and not m.name and not m.client_urls:
-                # go through list of peerURLs and try to find my instance there
-                for peer_url in m.peer_urls:
-                    r = urlparse(peer_url)
-                    if r.netloc == me.peer_addr:
-                        return True
+                if me.addr_matches(m.peer_urls):
+                    return True
                 logging.warning('Member (id=%s peerURLs=%s) is registered but not yet joined', m.id, m.peer_urls)
                 return False
         return True
@@ -283,6 +351,7 @@ class EtcdManager:
         self.me = None
         self.etcd_pid = 0
         self.runv2 = False
+        self._access_granted = False
 
     def load_my_identities(self):
         url = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
@@ -290,6 +359,8 @@ class EtcdManager:
         if response.status_code != 200:
             raise EtcdClusterException('GET %s: code=%s content=%s', url, response.status_code, response.content)
         json = response.json()
+        if not EtcdCluster.is_multiregion():
+            EtcdCluster.REGIONS = [json['region']]
         self.region = json['region']
         self.instance_id = json['instanceId']
 
@@ -299,8 +370,8 @@ class EtcdManager:
 
         conn = boto3.resource('ec2', region_name=self.region)
         for i in conn.instances.filter(Filters=[{'Name': 'instance-id', 'Values': [self.instance_id]}]):
-            if i.id == self.instance_id and EtcdMember.AG_TAG in tags_to_dict(i.tags):
-                return EtcdMember(i)
+            if i.id == self.instance_id and EtcdMember.CF_TAG in tags_to_dict(i.tags):
+                return EtcdMember(i, self.region)
 
     def get_my_instance(self):
         if not self.me:
@@ -309,13 +380,21 @@ class EtcdManager:
 
     def get_autoscaling_members(self):
         me = self.get_my_instance()
+        members = []
+        for region in EtcdCluster.REGIONS:
+            conn = boto3.resource('ec2', region_name=region)
+            for i in conn.instances.filter(Filters=[
+                    {'Name': 'tag:{}'.format(EtcdMember.CF_TAG),
+                     'Values': [me.cloudformation_stack]}]):
+                if (i.state['Name'] == 'running' and
+                        tags_to_dict(i.tags).get(EtcdMember.CF_TAG, '') == me.cloudformation_stack):
+                    m = EtcdMember(i, region)
+                    members.append(m)
 
-        conn = boto3.resource('ec2', region_name=self.region)
-        instances = conn.instances.filter(
-            Filters=[{'Name': 'tag:{}'.format(EtcdMember.AG_TAG), 'Values': [me.autoscaling_group]}])
-
-        return [i for i in instances if i.state != 'terminated' and tags_to_dict(i.tags).get(EtcdMember.AG_TAG, '') ==
-                me.autoscaling_group]
+        if not self._access_granted:
+            me.adjust_security_groups('authorize_ingress', *members)
+            self._access_granted = True
+        return members
 
     def clean_data_dir(self):
         path = self.DATA_DIR
@@ -447,13 +526,12 @@ class HouseKeeper(Thread):
         return ret
 
     def remove_unhealthy_members(self, autoscaling_members):
-        members = {m.addr: m for m in map(EtcdMember, self.members.values())}
-
-        for m in autoscaling_members:
-            members.pop(m.private_ip_address, None)
-
-        for m in members.values():
-            self.manager.me.delete_member(m)
+        for etcd_member in self.members.values():
+            for ec2_member in autoscaling_members:
+                if ec2_member.addr_matches(etcd_member['peerURLs']):
+                    break
+            else:
+                self.manager.me.delete_member(EtcdMember(etcd_member))
 
     def update_record(self, conn, zone_id, rtype, rname, new_value):
         conn.change_resource_record_sets(
@@ -481,20 +559,24 @@ class HouseKeeper(Thread):
             raise Exception('Failed to find hosted_zone {}'.format(self.hosted_zone))
         zone_id = zone['Id']
 
-        stack_version = self.manager.me.cluster_token.split('-')[-1]
-        members = {m.addr: m for m in map(EtcdMember, self.members.values())}
+        stack_version = self.manager.me.cloudformation_stack.split('-')[-1]
+
+        members = []
+        for ec2_member in autoscaling_members:
+            for etcd_member in self.members.values():
+                if ec2_member.addr_matches(etcd_member['peerURLs']):
+                    members.append(ec2_member)
+                    break
 
         record_name = '_etcd-server._tcp.{}.{}'.format(stack_version, self.hosted_zone)
-        new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.private_ip_address].peer_port, i.private_dns_name]))}
-                      for i in autoscaling_members if i.private_ip_address in members]
+        new_record = [{'Value': ' '.join(map(str, [1, 1, i.peer_port, i.dns]))} for i in members]
         self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        record_name = '_etcd._tcp.{}.{}'.format(stack_version, self.hosted_zone)
-        new_record = [{'Value': ' '.join(map(str, [1, 1, members[i.private_ip_address].client_port,
-                      i.private_dns_name]))} for i in autoscaling_members if i.private_ip_address in members]
+        record_name = '_etcd-client._tcp.{}.{}'.format(stack_version, self.hosted_zone)
+        new_record = [{'Value': ' '.join(map(str, [1, 1, i.client_port, i.dns]))} for i in members]
         self.update_record(conn, zone_id, 'SRV', record_name, new_record)
 
-        new_record = [{'Value': i.private_ip_address} for i in autoscaling_members if i.private_ip_address in members]
+        new_record = [{'Value': i.addr} for i in members]
         self.update_record(conn, zone_id, 'A', 'etcd-server.{}.{}'.format(stack_version, self.hosted_zone), new_record)
 
     def run(self):
@@ -547,6 +629,9 @@ def main():
     signal.signal(signal.SIGTERM, sigterm_handler)
     logging.basicConfig(format='%(levelname)-6s %(asctime)s - %(message)s', level=logging.INFO)
     hosted_zone = os.environ.get('HOSTED_ZONE', None)
+    if os.environ.get('ACTIVE_REGIONS', '') != '':
+        EtcdCluster.REGIONS = os.environ.get('ACTIVE_REGIONS').split(',')
+
     manager = EtcdManager()
     try:
         house_keeper = HouseKeeper(manager, hosted_zone)

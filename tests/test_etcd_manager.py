@@ -27,10 +27,42 @@ def requests_get(url, **kwargs):
     else:
         response.content = \
             """{"region":"eu-west-1", "instanceId": "i-deadbeef3", "leaderInfo":{"leader":"ifoobari1"},"members":[
-{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["http://127.0.0.1:2380"],"clientURLs":["http://127.0.0.1:2379"]},
-{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["http://127.0.0.2:2380"],"clientURLs":["http://127.0.0.2:2379"]},
-{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["http://127.0.0.3:2380"],"clientURLs":["ttp://127.0.0.3:2379"]},
-{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["http://127.0.0.4:2380"],"clientURLs":[]}]}"""
+{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["http://ip-127-0-0-1.eu-west-1.compute.internal:2380"],
+"clientURLs":["http://127.0.0.1:2379"]},
+{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["http://ip-127-0-0-2.eu-west-1.compute.internal:2380"],
+"clientURLs":["http://127.0.0.2:2379"]},
+{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["http://ip-127-0-0-3.eu-west-1.compute.internal:2380"],
+"clientURLs":["http://127.0.0.3:2379"]},
+{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["http://ip-127-0-0-4.eu-west-1.compute.internal:2380"],
+"clientURLs":[]}]}"""
+    return response
+
+
+def requests_get_multiregion(url, **kwargs):
+    response = MockResponse()
+    if url == 'http://ec2-52-0-0-128.eu-west-1.compute.amazonaws.com:2379/v2/members':
+        response.content = '{"members":[]}'
+    elif url == 'http://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2379/version':
+        response.content = '{"etcdserver":"2.3.7","etcdcluster":"2.3.0"}'
+    elif url == 'http://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2379/v2/keys/_upgrade_lock':
+        response.status_code = 404
+    else:
+        response.content = \
+            """{"region":"eu-west-1", "instanceId": "i-deadbeef3", "leaderInfo":{"leader":"ifoobari1"},"members":[
+{"id":"ifoobari1","name":"i-deadbeef1","peerURLs":["http://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-52-0-0-41.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari2","name":"i-deadbeef2","peerURLs":["http://ec2-52-0-0-42.eu-west-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-52-0-0-42.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari3","name":"i-deadbeef3","peerURLs":["http://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-52-0-0-43.eu-west-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari4","name":"i-deadbeef4","peerURLs":["http://ec2-52-0-0-44.eu-west-1.compute.amazonaws.com:2380"],
+"clientURLs":[]},
+{"id":"ifoobari5","name":"i-beefcent1","peerURLs":["http://ec2-54-200-0-41.eu-central-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-54-200-0-41.eu-central-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari6","name":"i-beefcent2","peerURLs":["http://ec2-54-200-0-42.eu-central-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-54-200-0-42.eu-central-1.compute.amazonaws.com:2379"]},
+{"id":"ifoobari7","name":"i-beefcent3","peerURLs":["http://ec2-54-200-0-43.eu-central-1.compute.amazonaws.com:2380"],
+"clientURLs":["http://ec2-54-200-0-43.eu-central-1.compute.amazonaws.com:2379"]}]}"""
     return response
 
 
@@ -61,12 +93,15 @@ class MockReservation:
 
 class MockInstance:
 
-    state = 'running'
+    state = {'Code': 16, 'Name': 'running'}
 
-    def __init__(self, id, ip):
+    def __init__(self, id, ip, region='eu-west-1', public_ip=None):
         self.id = id
         self.private_ip_address = ip
-        self.private_dns_name = 'ip-{}.eu-west-1.compute.internal'.format(ip.replace('.', '-'))
+        self.private_dns_name = 'ip-{}.{}.compute.internal'.format(ip.replace('.', '-'), region)
+        self.public_ip_address = public_ip
+        self.public_dns_name = public_ip and \
+            'ec2-{}.{}.compute.amazonaws.com'.format(public_ip.replace('.', '-'), region)
         self.tags = [
             {'Key': 'aws:cloudformation:stack-name', 'Value': 'etc-cluster'},
             {'Key': 'aws:autoscaling:groupName', 'Value': 'etc-cluster-postgres'}
@@ -78,6 +113,17 @@ def instances():
         MockInstance('i-deadbeef1', '127.0.0.1'),
         MockInstance('i-deadbeef2', '127.0.0.2'),
         MockInstance('i-deadbeef3', '127.0.0.3')
+    ]
+
+
+def public_instances():
+    return [
+        MockInstance('i-deadbeef1', '127.0.0.1', 'eu-west-1', '52.0.0.41'),
+        MockInstance('i-deadbeef2', '127.0.0.2', 'eu-west-1', '52.0.0.42'),
+        MockInstance('i-deadbeef3', '127.0.0.3', 'eu-west-1', '52.0.0.43'),
+        MockInstance('i-beefcent1', '127.0.0.1', 'eu-central-1', '54.200.0.41'),
+        MockInstance('i-beefcent2', '127.0.0.2', 'eu-central-1', '54.200.0.42'),
+        MockInstance('i-beefcent3', '127.0.0.3', 'eu-central-1', '54.200.0.43')
     ]
 
 
