@@ -389,7 +389,8 @@ class EtcdManager:
                 if (i.state['Name'] == 'running' and
                         tags_to_dict(i.tags).get(EtcdMember.CF_TAG, '') == me.cloudformation_stack):
                     m = EtcdMember(i, region)
-                    members.append(m)
+                    if not EtcdCluster.is_multiregion() or m.public_ip_address:
+                        members.append(m)
 
         if not self._access_granted:
             me.adjust_security_groups('authorize_ingress', *members)
