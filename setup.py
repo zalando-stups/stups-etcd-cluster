@@ -55,7 +55,7 @@ class PyTest(TestCommand):
     def finalize_options(self):
         TestCommand.finalize_options(self)
         if self.cov_xml or self.cov_html:
-            self.cov = ['--cov', MAIN_SCRIPT, '--cov-report', 'term-missing']
+            self.cov = ['--cov', MAIN_SCRIPT[:-3], '--cov-report', 'term-missing']
             if self.cov_xml:
                 self.cov.extend(['--cov-report', 'xml'])
             if self.cov_html:
@@ -117,7 +117,7 @@ def setup_package():
         test_suite='tests',
         packages=[],
         install_requires=get_install_requirements('requirements.txt'),
-        setup_requires=['flake8==2.6.0'],
+        setup_requires=['flake8'],
         cmdclass=cmdclass,
         tests_require=['pytest-cov', 'pytest', 'mock'],
         command_options=command_options,
