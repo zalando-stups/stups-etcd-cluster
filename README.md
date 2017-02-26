@@ -9,7 +9,7 @@ Design
 ======
 The appliance is supposed to be run on EC2 instances, members of one autoscaling group.
 Usage of autoscaling group give us possibility to discover all cluster member via AWS api (python-boto).
-Etcd process is executed by python wrapper which is taking care of discovering all members of already existing cluster or the new cluster.
+Etcd process is executed by a python wrapper which is taking care of discovering all members of already existing cluster or the new cluster.
 
 Currently the following scenarios are supported:
 
@@ -32,10 +32,6 @@ For example, if you are making an etcd cluster to be used by a service called `f
     senza create https://raw.github.com/zalando-incubator/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
                                    DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14
-
-<!-- 
-Q: how is the above connected to `foo`?
--->
 
 ## Step 2: Confirm successful cluster creation
 
