@@ -3,16 +3,18 @@
 
 Introduction
 ============
-This etcd appliance is created for an AWS environment. It is available as an etcd cluster internally, for any application willing to use it. For discovery of the appliance we havie a recently updated DNS SRV and A records in a Route53 zone.
+This etcd appliance is created for an AWS environment. It is available as an etcd cluster internally, for any application willing to use it. For discovery of the appliance we have a recently updated DNS SRV and A records in a Route53 zone.
 
 Design
 ======
-The appliance supposed to be run on EC2 instances, members of one autoscaling group.
+The appliance is supposed to be run on EC2 instances, members of one autoscaling group.
 Usage of autoscaling group give us possibility to discover all cluster member via AWS api (python-boto).
-Etcd process is executed by python wrapper which is taking care about discovering all members of already existing cluster or the new cluster.
+Etcd process is executed by python wrapper which is taking care of discovering all members of already existing cluster or the new cluster.
+
 Currently the following scenarios are supported:
-- Starting up of the new cluster. etcd.py will figure out that this is the new cluster and run etcd daemon with necessary options.
-- If the new EC2 instance is spawned within existing autoscaling group etcd.py will take care about adding this instance into already existing cluster and apply needed options to etcd daemon.
+
+- Starting up the new cluster. etcd.py will figure out that this is the new cluster and run etcd daemon with necessary options.
+- If the new EC2 instance is spawned within existing autoscaling group etcd.py will take care of adding this instance into already existing cluster and apply needed options to etcd daemon.
 - If something happened with etcd (crached or exited), etcd.py will try to restart it.
 - Periodically leader performs cluster health check and remove cluster members which are not members of autoscaling group
 - Also it creates or updates SRV and A records in a given zone via AWS api.
@@ -21,19 +23,25 @@ Usage
 =====
 
 ## Step 1: Create an etcd cluster
-A cluster can be creating by issuing such a command:
+A cluster can be created by issuing such a command:
 
     senza create etcd-cluster.yaml STACK_VERSION HOSTED_ZONE DOCKER_IMAGE
 
-For example, if you made are making an etcd cluster to be used by a service called `foo`, you could issue the following:
+For example, if you are making an etcd cluster to be used by a service called `foo`, you could issue the following:
 
     senza create https://raw.github.com/zalando-incubator/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
                                    DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14
 
+<!-- 
+Q: how is the above connected to `foo`?
+-->
+
 ## Step 2: Confirm successful cluster creation
+
 Running this `senza create` command should have created:
-- the required amount of EC2 instances
+
+- the required number of EC2 instances
     - with stack name `etcd-cluster`
     - with instance name `etcd-cluster-releaseetcd`
 - a security group allowing etcd's ports 2379 and 2380
@@ -46,7 +54,7 @@ Running this `senza create` command should have created:
 
 Multiregion cluster
 ===================
-It is possible to deploy etcd-cluster across multiple regions. To do that you have to deploy cloud formation stack into multiple regions with the same stack names. It will make possible to discover instances from other region and grant access to those instances via SecurityGroups. Deployment has to be done region by region, otherwise there is a chance of race condition during cluster bootstrap. 
+It is possible to deploy etcd-cluster across multiple regions. To do that you have to deploy cloud formation stack into multiple regions with the same stack names. This enables discovery of instances from other regions and grants access to those instances via SecurityGroups. Deployment has to be done region by region, otherwise there is a chance of race condition during cluster bootstrap. 
 
     senza --region eu-central-1 create etcd-cluster-multiregion.yaml multietcd
             HostedZone=elephant.example.org \
@@ -72,7 +80,7 @@ To upgrade an existing etcd deployment to 3.0, you must be running 2.3. If you a
 
 A major upgrade is possible one version at a time, i.e. it is possible to upgrade from 2.0 to 2.1 and from 2.1 to 2.2, but it is not possible to upgrade from 2.0 to 2.2.
 
-Before 3.0 it was possible simply "join" the new member with a higher major version with the empty data directory to the cluster and it was working fine. Somehow this approach has stopped working for 2.3 -> 3.0 upgrade. So now we are using another technique: if the cluster_version is still 2.3, we are "joining" etcd 2.3.7 member to the cluster, in order to download latest data. When the cluster becomes healthy again, we are taking an "upgrade_lock", stopping etcd 2.3.7 and starting up etcd 3.0. When the cluster is healthy again we are removing "upgrade_lock" in order for other members to upgrade.
+Before 3.0 it was possible simply to "join" the new member with a higher major version with the empty data directory to the cluster and it was working fine. Somehow this approach has stopped working for 2.3 -> 3.0 upgrade. So now we are using another technique: if the cluster_version is still 2.3, we are "joining" etcd 2.3.7 member to the cluster, in order to download latest data. When the cluster becomes healthy again, we are taking an "upgrade_lock", stopping etcd 2.3.7 and starting up etcd 3.0. When the cluster is healthy again we are removing "upgrade_lock" in order for other members to upgrade.
 
 The upgrade lock is needed to:
 - Temporary switch off "house-keeping" job, which task is removing "unhealthy" members and updating DNS records.
@@ -80,7 +88,7 @@ The upgrade lock is needed to:
 
 Migration of an existing cluster to multiregion setup
 =====================================================
-Currently there are only two AZ in eu-central-1 region, therefore if the one AZ will go down we have chance 50% that our etcd will become read-only. To avoid that we want to run one additional instance in eu-west-1 region.
+Currently there are only two AZ in eu-central-1 region, therefore if the one AZ will go down we have a 50% chance that our etcd will become read-only. To avoid that we want to run one additional instance in eu-west-1 region.
 
 Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) active region eu-central-1. To do that you need to run:
 
