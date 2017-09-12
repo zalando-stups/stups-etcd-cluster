@@ -27,11 +27,11 @@ A cluster can be created by issuing such a command:
 
     senza create etcd-cluster.yaml STACK_VERSION HOSTED_ZONE DOCKER_IMAGE
 
-For example, if you are making an etcd cluster to be used by a service called `foo`, you could issue the following:
+For example, if you are making an etcd cluster to be used by a service called `release`, you could issue the following:
 
-    senza create https://raw.github.com/zalando-incubator/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
+    senza create https://raw.githubusercontent.com/zalando-stups/stups-etcd-cluster/master/etcd-cluster.yaml releaseetcd \
                                    HostedZone=elephant.example.org \
-                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14
+                                   DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17
 
 ## Step 2: Confirm successful cluster creation
 
@@ -54,7 +54,7 @@ It is possible to deploy etcd-cluster across multiple regions. To do that you ha
 
     senza --region eu-central-1 create etcd-cluster-multiregion.yaml multietcd
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=4
 
@@ -62,7 +62,7 @@ It is possible to deploy etcd-cluster across multiple regions. To do that you ha
 
     senza --region eu-west-1 create etcd-cluster-multiregion.yaml multietcd
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=1
 
@@ -90,7 +90,7 @@ Step 1: you have to migrate to the multiregion setup but with only 1 (ONE) activ
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-central-1 \
             InstanceCount=5
 
@@ -100,7 +100,7 @@ Step 2: Enable the second region.
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-central-1,eu-west-1 \
             InstanceCount=5
 
@@ -110,7 +110,7 @@ Step 3: Change instance count in eu-central-1 to 4:
 
     senza --region=eu-central-1 update etcd-cluster-multiregion.yaml existingcluster \
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-central-1,eu-west-1 \
             InstanceCount=4
             
@@ -120,7 +120,7 @@ Step 4: Deploy cloudformation in another region:
 
     senza --region eu-west-1 create etcd-cluster-multiregion.yaml existingcluster
             HostedZone=elephant.example.org \
-            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p14 \
+            DockerImage=registry.opensource.zalan.do/acid/etcd-cluster:3.0.17-p17 \
             ActiveRegions=eu-west-1,eu-central-1 \
             InstanceCount=1
 
