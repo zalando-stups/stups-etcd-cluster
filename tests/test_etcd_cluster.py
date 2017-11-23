@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from etcd import EtcdCluster, EtcdManager, EtcdMember
@@ -18,6 +19,7 @@ class TestEtcdCluster(unittest.TestCase):
         self.cluster = EtcdCluster(self.manager)
         self.cluster.load_members()
         self.assertFalse(EtcdCluster.is_multiregion())
+        os.environ['ETCDVERSION'] = '3.2.10'
 
     @patch('boto3.resource')
     def test_load_members(self, res):

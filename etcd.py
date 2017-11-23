@@ -275,8 +275,12 @@ class EtcdCluster:
         self.members = []
 
     @property
-    def is_v3(self):
-        return self.cluster_version is not None and self.cluster_version.startswith('3.')
+    def is_upgraded(self):
+        etcdversion = os.environ.get('ETCDVERSION')
+        if etcdversion:
+            etcdversion = etcdversion[:etcdversion.rfind('.') + 1]
+
+        return etcdversion and self.cluster_version is not None and self.cluster_version.startswith(etcdversion)
 
     @staticmethod
     def is_multiregion():
@@ -350,7 +354,7 @@ class EtcdManager:
         self.instance_id = None
         self.me = None
         self.etcd_pid = 0
-        self.runv2 = False
+        self.run_old = False
         self._access_granted = False
 
     def load_my_identities(self):
@@ -445,7 +449,7 @@ class EtcdManager:
                     raise EtcdClusterException('Can not register myself in etcd cluster')
                 time.sleep(self.NAPTIME)
 
-        self.runv2 = add_member and cluster_state == 'existing' and not cluster.is_v3
+        self.run_old = add_member and cluster_state == 'existing' and not cluster.is_upgraded
 
         peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
                          if (include_ec2_instances and m.instance_id) or m.peer_urls])
@@ -462,7 +466,7 @@ class EtcdManager:
 
                 if cluster.is_healthy(self.me):
                     args = self.register_me(cluster)
-                    binary = self.ETCD_BINARY + ('v2' if self.runv2 else '')
+                    binary = self.ETCD_BINARY + ('.old' if self.run_old else '')
 
                     self.etcd_pid = os.fork()
                     if self.etcd_pid == 0:
@@ -596,7 +600,7 @@ class HouseKeeper(Thread):
                 else:
                     self.members = {}
                     update_required = False
-                    if self.manager.etcd_pid != 0 and self.manager.runv2 \
+                    if self.manager.etcd_pid != 0 and self.manager.run_old \
                             and not self.cluster_unhealthy() and self.take_upgrade_lock(600):
                         logging.info('Performing upgrade of member %s', self.manager.me.name)
                         os.kill(self.manager.etcd_pid, signal.SIGTERM)
