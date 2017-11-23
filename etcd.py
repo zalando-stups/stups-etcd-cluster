@@ -224,7 +224,7 @@ class EtcdMember:
                                     ToPort=self.peer_port,
                                     CidrIp='{}/32'.format(m.addr)
                                 )
-                            except:
+                            except Exception:
                                 logging.exception('Exception on %s for for %s', action, m.addr)
 
     def add_member(self, member):
@@ -318,7 +318,7 @@ class EtcdCluster:
                         self.leader_id = member.get_leader()  # Let's ask him about leader of etcd-cluster
                         self.cluster_version = member.get_cluster_version()  # and about cluster-wide etcd version
                         break
-                except:
+                except Exception:
                     logging.exception('Load members from etcd')
 
         # combine both lists together
@@ -413,7 +413,7 @@ class EtcdManager:
                 os.remove(path)
             elif os.path.isdir(path):
                 shutil.rmtree(path)
-        except:
+        except Exception:
             logging.exception('Can not remove %s', path)
 
     def register_me(self, cluster):
@@ -478,7 +478,7 @@ class EtcdManager:
                     self.etcd_pid = 0
             except SystemExit:
                 break
-            except:
+            except Exception:
                 logging.exception('Exception in main loop')
             logging.warning('Sleeping %s seconds before next try...', self.NAPTIME)
             time.sleep(self.NAPTIME)
@@ -614,7 +614,7 @@ class HouseKeeper(Thread):
                                 break
                         else:
                             logging.error('upgrade: giving up...')
-            except:
+            except Exception:
                 logging.exception('Exception in HouseKeeper main loop')
             logging.debug('Sleeping %s seconds...', self.NAPTIME)
             time.sleep(self.NAPTIME)
@@ -653,7 +653,7 @@ def main():
                     logging.error('Can not remove myself from cluster')
             else:
                 logging.error('Cluster does not have accessible member')
-        except:
+        except Exception:
             logging.exception('Failed to remove myself from cluster')
 
 
