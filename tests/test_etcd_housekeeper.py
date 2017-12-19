@@ -91,7 +91,7 @@ class TestHouseKeeper(unittest.TestCase):
         self.assertRaises(Exception, self.keeper.run)
         with patch('time.sleep', Mock()):
             self.keeper.is_leader = Mock(return_value=False)
-            self.keeper.manager.runv2 = True
+            self.keeper.manager.run_old = True
             self.keeper.cluster_unhealthy = Mock(side_effect=[False, True, False])
             self.assertRaises(Exception, self.keeper.run)
             self.keeper.cluster_unhealthy = Mock(side_effect=[False] + [True]*100)

@@ -3,12 +3,13 @@ dist: trusty
 language: python
 python:
   - "2.7"
-  - "3.3"
   - "3.4"
   - "3.5"
+  - "3.6"
 install:
+  - pip install setuptools --upgrade
   - pip install -r requirements.txt
-  - pip install coveralls
+  - pip install coveralls flake8
 script:
   - python setup.py test
   - python setup.py flake8

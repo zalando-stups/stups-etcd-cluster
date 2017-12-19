@@ -13,7 +13,7 @@ NAME = 'stups-etcd-cluster'
 VERSION = '1.0'
 DESCRIPTION = 'Etcd cluster appliance for the STUPS (AWS) environment'
 LICENSE = 'Apache License Version 2.0'
-URL = 'https://github.com/zalando/stups-etcd-cluster'
+URL = 'https://github.com/zalando-stups/stups-etcd-cluster'
 AUTHOR = 'Alexander Kukushkin'
 AUTHOR_EMAIL = 'alexander.kukushkin@zalando.de'
 KEYWORDS = 'etcd cluster etcd-cluster stups aws'
@@ -33,8 +33,9 @@ CLASSIFIERS = [
     'Operating System :: POSIX :: Linux',
     'Programming Language :: Python',
     'Programming Language :: Python :: 2.7',
-    'Programming Language :: Python :: 3.3',
     'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: Implementation :: CPython',
 ]
 
@@ -66,7 +67,7 @@ class PyTest(TestCommand):
     def run_tests(self):
         try:
             import pytest
-        except:
+        except Exception:
             raise RuntimeError('py.test is not installed, run: pip install pytest')
         params = {'args': self.test_args}
         if self.cov:
@@ -117,9 +118,8 @@ def setup_package():
         test_suite='tests',
         packages=[],
         install_requires=get_install_requirements('requirements.txt'),
-        setup_requires=['flake8'],
         cmdclass=cmdclass,
-        tests_require=['pytest-cov', 'pytest', 'mock'],
+        tests_require=['pytest-cov', 'pytest', 'mock', 'flake8'],
         command_options=command_options,
         entry_points={'console_scripts': CONSOLE_SCRIPTS},
     )
