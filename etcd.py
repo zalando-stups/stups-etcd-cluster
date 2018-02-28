@@ -244,7 +244,8 @@ class EtcdMember:
         return result
 
     def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
-        return [
+        # common flags that always have to be set
+        arguments = [
             '-name',
             self.instance_id,
             '--data-dir',
@@ -255,8 +256,6 @@ class EtcdMember:
             self.peer_url,
             '-listen-client-urls',
             'http://0.0.0.0:{}'.format(self.client_port),
-            '-listen-metrics-urls',
-            'http://0.0.0.0:{}'.format(self.metrics_port),
             '-advertise-client-urls',
             self.get_client_url(),
             '-initial-cluster',
@@ -266,6 +265,22 @@ class EtcdMember:
             '-initial-cluster-state',
             cluster_state
         ]
+
+        # this section handles etcd version specific flags
+        etcdversion = os.environ.get('ETCDVERSION')
+        if etcdversion:
+            etcdversion = list(map(lambda x: int(x), etcdversion.split('.')))
+            # don't try to add additonal flags if we encounter an unexpected version format
+            if len(etcdversion) == 3:
+                # etcd >= v3.3: serve metrics on an additonal port
+                if etcdversion[0] >= 3 and etcdversion[1] >= 3:
+                    arguments += [
+                        '-listen-metrics-urls',
+                        'http://0.0.0.0:{}'.format(self.metrics_port),
+                    ]
+
+        # return final list of arguments
+        return arguments
 
 
 class EtcdCluster:
