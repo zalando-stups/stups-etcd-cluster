@@ -37,6 +37,7 @@ class EtcdMember:
     API_VERSION = '/v2/'
     DEFAULT_CLIENT_PORT = 2379
     DEFAULT_PEER_PORT = 2380
+    DEFAULT_METRICS_PORT = 2381
     AG_TAG = 'aws:autoscaling:groupName'
     CF_TAG = 'aws:cloudformation:stack-name'
 
@@ -56,6 +57,7 @@ class EtcdMember:
 
         self.client_port = self.DEFAULT_CLIENT_PORT
         self.peer_port = self.DEFAULT_PEER_PORT
+        self.metrics_port = self.DEFAULT_METRICS_PORT
 
         self.client_urls = []  # these values could be assigned only from the running etcd
         self.peer_urls = []  # cluster by performing http://addr:client_port/v2/members api call
@@ -253,6 +255,8 @@ class EtcdMember:
             self.peer_url,
             '-listen-client-urls',
             'http://0.0.0.0:{}'.format(self.client_port),
+            '-listen-metrics-urls',
+            'http://0.0.0.0:{}'.format(self.metrics_port),
             '-advertise-client-urls',
             self.get_client_url(),
             '-initial-cluster',
