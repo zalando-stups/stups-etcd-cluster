@@ -269,15 +269,13 @@ class EtcdMember:
         # this section handles etcd version specific flags
         etcdversion = os.environ.get('ETCDVERSION')
         if etcdversion:
-            etcdversion = list(map(lambda x: int(x), etcdversion.split('.')))
-            # don't try to add additonal flags if we encounter an unexpected version format
-            if len(etcdversion) == 3:
-                # etcd >= v3.3: serve metrics on an additonal port
-                if etcdversion[0] >= 3 and etcdversion[1] >= 3:
-                    arguments += [
-                        '-listen-metrics-urls',
-                        'http://0.0.0.0:{}'.format(self.metrics_port),
-                    ]
+            etcdversion = tuple(int(x) for x in etcdversion.split('.'))
+            # etcd >= v3.3: serve metrics on an additonal port
+            if etcdversion >= (3, 3):
+                arguments += [
+                    '-listen-metrics-urls',
+                    'http://0.0.0.0:{}'.format(self.metrics_port),
+                ]
 
         # return final list of arguments
         return arguments
