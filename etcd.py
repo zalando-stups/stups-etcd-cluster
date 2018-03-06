@@ -243,7 +243,7 @@ class EtcdMember:
         self.adjust_security_groups('revoke_ingress', member)
         return result
 
-    def etcd_arguments(self, data_dir, initial_cluster, cluster_state, run_old)):
+    def etcd_arguments(self, data_dir, initial_cluster, cluster_state, run_old):
         # common flags that always have to be set
         arguments = [
             '-name',
