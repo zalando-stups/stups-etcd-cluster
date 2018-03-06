@@ -243,7 +243,7 @@ class EtcdMember:
         self.adjust_security_groups('revoke_ingress', member)
         return result
 
-    def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
+    def etcd_arguments(self, data_dir, initial_cluster, cluster_state, run_old)):
         # common flags that always have to be set
         arguments = [
             '-name',
@@ -267,7 +267,7 @@ class EtcdMember:
         ]
 
         # this section handles etcd version specific flags
-        etcdversion = os.environ.get('ETCDVERSION')
+        etcdversion = os.environ.get('ETCDVERSION_PREV' if run_old else 'ETCDVERSION')
         if etcdversion:
             etcdversion = tuple(int(x) for x in etcdversion.split('.'))
             # etcd >= v3.3: serve metrics on an additonal port
@@ -471,7 +471,7 @@ class EtcdManager:
         peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
                          if (include_ec2_instances and m.instance_id) or m.peer_urls])
 
-        return self.me.etcd_arguments(self.DATA_DIR, peers, cluster_state)
+        return self.me.etcd_arguments(self.DATA_DIR, peers, cluster_state, self.run_old)
 
     def run(self):
         cluster = EtcdCluster(self)
