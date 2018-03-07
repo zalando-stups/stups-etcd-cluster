@@ -37,6 +37,7 @@ class EtcdMember:
     API_VERSION = '/v2/'
     DEFAULT_CLIENT_PORT = 2379
     DEFAULT_PEER_PORT = 2380
+    DEFAULT_METRICS_PORT = 2381
     AG_TAG = 'aws:autoscaling:groupName'
     CF_TAG = 'aws:cloudformation:stack-name'
 
@@ -56,6 +57,7 @@ class EtcdMember:
 
         self.client_port = self.DEFAULT_CLIENT_PORT
         self.peer_port = self.DEFAULT_PEER_PORT
+        self.metrics_port = self.DEFAULT_METRICS_PORT
 
         self.client_urls = []  # these values could be assigned only from the running etcd
         self.peer_urls = []  # cluster by performing http://addr:client_port/v2/members api call
@@ -241,8 +243,9 @@ class EtcdMember:
         self.adjust_security_groups('revoke_ingress', member)
         return result
 
-    def etcd_arguments(self, data_dir, initial_cluster, cluster_state):
-        return [
+    def etcd_arguments(self, data_dir, initial_cluster, cluster_state, run_old):
+        # common flags that always have to be set
+        arguments = [
             '-name',
             self.instance_id,
             '--data-dir',
@@ -262,6 +265,20 @@ class EtcdMember:
             '-initial-cluster-state',
             cluster_state
         ]
+
+        # this section handles etcd version specific flags
+        etcdversion = os.environ.get('ETCDVERSION_PREV' if run_old else 'ETCDVERSION')
+        if etcdversion:
+            etcdversion = tuple(int(x) for x in etcdversion.split('.'))
+            # etcd >= v3.3: serve metrics on an additonal port
+            if etcdversion >= (3, 3):
+                arguments += [
+                    '-listen-metrics-urls',
+                    'http://0.0.0.0:{}'.format(self.metrics_port),
+                ]
+
+        # return final list of arguments
+        return arguments
 
 
 class EtcdCluster:
@@ -454,7 +471,7 @@ class EtcdManager:
         peers = ','.join(['{}={}'.format(m.instance_id or m.name, m.peer_url) for m in cluster.members
                          if (include_ec2_instances and m.instance_id) or m.peer_urls])
 
-        return self.me.etcd_arguments(self.DATA_DIR, peers, cluster_state)
+        return self.me.etcd_arguments(self.DATA_DIR, peers, cluster_state, self.run_old)
 
     def run(self):
         cluster = EtcdCluster(self)
