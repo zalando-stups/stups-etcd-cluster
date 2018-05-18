@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
@@ -21,13 +21,13 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 
 ## Install etcd
 
-ARG ETCDVERSION_PREV=3.0.17
+ARG ETCDVERSION_PREV=3.2.20
 RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION_PREV}/etcd-v${ETCDVERSION_PREV}-linux-amd64.tar.gz \
         | tar xz -C /bin --xform='s/$/.old/x' --strip=1 --wildcards --no-anchored etcd \
     && chown root:root /bin/etcd.old \
     && chmod +x /bin/etcd.old
 
-ARG ETCDVERSION=3.1.10
+ARG ETCDVERSION=3.3.5
 ENV ETCDVERSION=$ETCDVERSION
 RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz \
         | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl \
@@ -39,5 +39,5 @@ COPY scm-source.json /scm-source.json
 
 WORKDIR $HOME
 USER ${USER}
-EXPOSE 2379 2380
+EXPOSE 2379 2380 2381
 CMD ["/usr/bin/python3", "/bin/etcd.py"]
