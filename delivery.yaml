@@ -5,9 +5,6 @@ build_steps:
         apt-get install -y python3 python3-pip jq
         pip3 install scm-source
 
-    - desc: Install Docker
-      cmd: 'curl -sSL https://get.docker.com/ | sh'
-
     - desc: scm-source file create
       cmd: |
         scm-source
@@ -15,10 +12,10 @@ build_steps:
     - desc: Build and push docker images
       cmd: |
         # Please bump PATCH_VERSION if you change etcd.py or Dockerfile
-        PATCH_VERSION=p21
+        PATCH_VERSION=p22
         STOP_VERSION=2.3
 
-        ETCD_VERSIONS=$(curl -sL "https://api.github.com/repos/coreos/etcd/releases?per_page=100" | jq -r .[].name | sed -n 's/^v\([^-]*\)$/\1/p' | sort -urV)
+        ETCD_VERSIONS=$(curl -sL "https://api.github.com/repos/etcd-io/etcd/releases?per_page=100" | jq -r .[].name | sed -n 's/^v\([^-]*\)$/\1/p' | sort -urV)
         ETCD_MAJOR_VERSIONS=$(sed 's/\.[0-9]*$//g' <<< "$ETCD_VERSIONS" | sort -urV)
 
         for major_version in $ETCD_MAJOR_VERSIONS; do
