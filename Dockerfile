@@ -22,14 +22,14 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 ## Install etcd
 
 ARG ETCDVERSION_PREV=3.2.20
-RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION_PREV}/etcd-v${ETCDVERSION_PREV}-linux-amd64.tar.gz \
+RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION_PREV}/etcd-v${ETCDVERSION_PREV}-linux-amd64.tar.gz \
         | tar xz -C /bin --xform='s/$/.old/x' --strip=1 --wildcards --no-anchored etcd \
     && chown root:root /bin/etcd.old \
     && chmod +x /bin/etcd.old
 
 ARG ETCDVERSION=3.3.5
 ENV ETCDVERSION=$ETCDVERSION
-RUN curl -L https://github.com/coreos/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz \
+RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz \
         | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl \
     && chown root:root /bin/etcd /bin/etcdctl \
     && chmod +x /bin/etcd /bin/etcdctl
