@@ -276,6 +276,10 @@ class EtcdMember:
                     '-listen-metrics-urls',
                     'http://0.0.0.0:{}'.format(self.metrics_port),
                 ]
+            if etcdversion >= (3, 4):
+                arguments += [
+                    '--enable-v2',
+                ]
 
         # return final list of arguments
         return arguments
@@ -542,7 +546,7 @@ class HouseKeeper(Thread):
 
     def cluster_unhealthy(self):
         process = subprocess.Popen([self.manager.ETCD_BINARY + 'ctl', 'cluster-health'],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env={'ETCDCTL_API': '2'})
         ret = any('unhealthy' in line or 'unreachable' in line for line in map(str, process.stdout))
         process.wait()
         return ret
