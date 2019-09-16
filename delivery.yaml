@@ -12,7 +12,7 @@ build_steps:
     - desc: Build and push docker images
       cmd: |
         # Please bump PATCH_VERSION if you change etcd.py or Dockerfile
-        PATCH_VERSION=p22
+        PATCH_VERSION=p23
         STOP_VERSION=2.3
 
         ETCD_VERSIONS=$(curl -sL "https://api.github.com/repos/etcd-io/etcd/releases?per_page=100" | jq -r .[].name | sed -n 's/^v\([^-]*\)$/\1/p' | sort -urV)
