@@ -27,7 +27,7 @@ RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION_PRE
     && chown root:root /bin/etcd.old \
     && chmod +x /bin/etcd.old
 
-ARG ETCDVERSION=3.4.0
+ARG ETCDVERSION=3.4.2
 ENV ETCDVERSION=$ETCDVERSION
 RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz \
         | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl \
