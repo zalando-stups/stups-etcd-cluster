@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM registry.opensource.zalan.do/library/ubuntu-18.04
 MAINTAINER Alexander Kukushkin <alexander.kukushkin@zalando.de>
 
 ENV USER etcd
@@ -21,13 +21,13 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 
 ## Install etcd
 
-ARG ETCDVERSION_PREV=3.2.20
+ARG ETCDVERSION_PREV=3.3.25
 RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION_PREV}/etcd-v${ETCDVERSION_PREV}-linux-amd64.tar.gz \
         | tar xz -C /bin --xform='s/$/.old/x' --strip=1 --wildcards --no-anchored etcd \
     && chown root:root /bin/etcd.old \
     && chmod +x /bin/etcd.old
 
-ARG ETCDVERSION=3.4.0
+ARG ETCDVERSION=3.4.14
 ENV ETCDVERSION=$ETCDVERSION
 RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION}/etcd-v${ETCDVERSION}-linux-amd64.tar.gz \
         | tar xz -C /bin --strip=1 --wildcards --no-anchored etcd etcdctl \
