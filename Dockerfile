@@ -35,7 +35,6 @@ RUN curl -L https://github.com/etcd-io/etcd/releases/download/v${ETCDVERSION}/et
     && chmod +x /bin/etcd /bin/etcdctl
 
 COPY etcd.py /bin/etcd.py
-COPY scm-source.json /scm-source.json
 
 WORKDIR $HOME
 USER ${USER}
