@@ -2,12 +2,7 @@ build_steps:
     - desc: Prepare Environment
       cmd: |
         apt-get update
-        apt-get install -y python3 python3-pip jq
-        pip3 install scm-source
-
-    - desc: scm-source file create
-      cmd: |
-        scm-source
+        apt-get install -y jq
 
     - desc: Build and push docker images
       cmd: |
